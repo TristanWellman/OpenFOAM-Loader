@@ -3,23 +3,12 @@
 #ifndef VTK_PARSER_HPP
 #define VTK_PARSER_HPP
 
+#define MAXLINESIZE 256
+#define MAXFILELINES 100000
 #define POLYDATANSIZE 3
 
 class vtkParser {
 	public:
-
-		typedef struct {
-			char **fileBuffer;
-			int lineCount;
-		} vtkParseData;
-
-		vtkParseData globalVtkData;
-
-		// used to hold "dynamic" array sizes for different data
-		template<typename ARRT, int len>
-		struct vtkSectionData {
-			ARRT dataArray[len];
-		};
 		// constructor
 		vtkParser(char *vtkFile);
 		void freeVtkData();
@@ -28,6 +17,12 @@ class vtkParser {
 
 	private:
 		char *VTKFILE;
+		typedef struct {
+			char fileBuffer[MAXFILELINES][MAXLINESIZE];
+			int lineCount;
+		} vtkParseData;
+
+		vtkParseData globalVtkData;
 
 		void addArrData();
 		
