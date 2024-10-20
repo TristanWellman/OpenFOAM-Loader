@@ -22,7 +22,7 @@ class vtkParser {
 			int lineCount;
 		} vtkParseData;
 
-		vtkParseData globalVtkData;
+		vtkParseData *globalVtkData;
 
 		void addArrData();
 		

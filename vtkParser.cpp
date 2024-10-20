@@ -8,14 +8,13 @@
 vtkParser::vtkParser(char *vtkFile) : VTKFILE(vtkFile){}
 
 void vtkParser::freeVtkData() {
-//	free(globalVtkData.fileBuffer);
+	free(globalVtkData);
 }
 
 
 int vtkParser::init() {
 	// ptr so I don't have to type all that shit out every time
-	vtkParseData *vtkDataPtr;
-	vtkDataPtr = &globalVtkData;
+	globalVtkData = (vtkParser::vtkParseData *)malloc(sizeof(vtkParser::vtkParseData));
 	//vtkSectionData<int, 25> polyData;
 	std::FILE *file = std::fopen(
 			vtkParser::VTKFILE, "r");
@@ -25,21 +24,24 @@ int vtkParser::init() {
 	for(;fgets(line,sizeof(line),file)!=NULL;lineCount++);
 	
 	std::fseek(file, 0, SEEK_SET);
-	vtkDataPtr->lineCount = lineCount;
+	globalVtkData->lineCount = lineCount;
 	
 	// copy data from file to fileBuffer
 	for(lineCount=0;fgets(line,sizeof(line),file)!=NULL;lineCount++) {
-		sprintf(vtkDataPtr->fileBuffer[lineCount], "%s", line);
-		std::cout << vtkDataPtr->fileBuffer[lineCount];
+		int i=0;
+		for(i=0;i<MAXLINESIZE&&line[i]!='\0';i++) {
+			globalVtkData->fileBuffer[lineCount][i] = line[i];
+		}
+		std::cout << globalVtkData->fileBuffer[lineCount];
 	}
 	std::fclose(file);
-	return (vtkDataPtr->fileBuffer!=NULL);	
+	return (globalVtkData->lineCount>0);	
 }
 
 void vtkParser::parse() {
 
 	int i;
-	for(i=0;i<globalVtkData.lineCount;i++) {
-		std::cout << globalVtkData.fileBuffer[i];
+	for(i=0;i<globalVtkData->lineCount;i++) {
+		std::cout << globalVtkData->fileBuffer[i];
 	}
 }
