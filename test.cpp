@@ -1,3 +1,4 @@
+/*Copyright (c) 2024 Tristan Wellman*/
 #include <iostream>
 #include "vtkParser.hpp"
 
@@ -9,7 +10,10 @@ int main() {
 		cout << "Error: failed to initialize file!" << endl;
 		exit(1);
 	};	
-	parser.parse();	
+	if(!parser.parse()) {
+		cout << "Error: failed to parse file!" << endl;
+		exit(1);
+	}	
 	parser.freeVtkData();
 	return 0;
 }

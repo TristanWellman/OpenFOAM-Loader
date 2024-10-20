@@ -5,27 +5,39 @@
 
 #define MAXLINESIZE 256
 #define MAXFILELINES 100000
+
 #define POLYDATANSIZE 3
+#define MAXPOLY 100000
 
 class vtkParser {
 	public:
 		// constructor
 		vtkParser(char *vtkFile);
+
 		void freeVtkData();
 		int init();
-		void parse();
+		int parse();
 
 	private:
 		char *VTKFILE;
+		
+		typedef struct {
+			double polyDataset[MAXPOLY][POLYDATANSIZE];
+		} openFoamVtkFileData;
+
 		typedef struct {
 			char fileBuffer[MAXFILELINES][MAXLINESIZE];
 			int lineCount;
+			openFoamVtkFileData *foamData;
 		} vtkParseData;
 
 		vtkParseData *globalVtkData;
 
-		void addArrData();
-		
+		/* This function needs changed in future:
+		 * vtk datasets are defined by (name) value type I.E. POINTS 104 float.
+		 * this function is only catering to the polyData when it could grab everything for later use.
+		 * */
+		void getPolyDataset(vtkParseData *data);	
 };
 
 #endif
