@@ -16,7 +16,7 @@ class vtkParser {
 
 	private:
 		void addArrData();
-		char *VTKFILE {0};
+		char *VTKFILE;
 		
 };
 
