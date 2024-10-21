@@ -5,7 +5,7 @@
 #include <cstring>
 #include <memory>
 #include <vector>
-#include <bits/stdc++.h>
+#include <sstream>
 #include "vtkParser.hpp"
 
 vtkParser::vtkParser(char *vtkFile) : VTKFILE(vtkFile){}
@@ -45,9 +45,9 @@ int vtkParser::init() {
 
 void vtkParser::dumpOFOAMPolyDataset() {
 	int i,j;
-	for(i=0;i<MAXFILELINES;i++) {
+	for(i=0;i<globalVtkData->foamData->depth;i++) {
 		for(j=0;j<POLYDATANSIZE;j++) {
-			if(globalVtkData->foamData->polyDataset[i][j]==0) return;
+			//if(globalVtkData->foamData->polyDataset[i][j]==0) return;
 			std::cout << globalVtkData->foamData->polyDataset[i][j] << " ";
 		}
 		std::cout << std::endl;
@@ -70,22 +70,22 @@ void vtkParser::polyPointSecParse(vtkParseData *data, int line) {
 		std::cout << "ERROR:: invalid poly-array size: line " << line << std::endl;
 		return;
 	}
-	// this bs moves the vector space to polygons.
+	// this bs moves the vector space to polygon array.
 	// I'm sorry this looks the way it does...
+	int skipped=0;
 	for(int k=0;k<tokenizedLine.size()&&k<MAXPOLY;k++) {
-		if(data->foamData->polyDataset[k][0]!=0) continue;
-		for(int j=0;j<POLYDATANSIZE&&(k*POLYDATANSIZE+j)<tokenizedLine.size();j++) {
+		if(data->foamData->polyDataset[k][0]!=0) {skipped++;continue;}
+		for(int j=0;j<POLYDATANSIZE&&((k-skipped)*POLYDATANSIZE+j)<tokenizedLine.size();j++) {
+			int pos = (k-skipped)*POLYDATANSIZE+j;
 			if(data->foamData->polyDataset[k][j]==0) {
-				if(k*POLYDATANSIZE+j<=tokenizedLine.size()&&
-						!tokenizedLine[k*POLYDATANSIZE+j].empty()) {
-					std::string tmp = tokenizedLine[k*POLYDATANSIZE+j];
-					//std::cout << tokenizedLine[k*POLYDATANSIZE+j] << " ";
-					data->foamData->polyDataset[k][j] = std::stod(tmp);
-				} else break;
+				std::string tmp = tokenizedLine[pos];
+				//std::cout << data->foamData->polyDataset[k][j] << " ";
+				data->foamData->polyDataset[k][j] = std::stod(tmp);
+				//data->foamData->polyDataset[k].push_back(std::stod(tmp));
 			} 
 		}
 	}
-
+	
 }
 
 int checkDataScope(char *line) {
@@ -113,6 +113,7 @@ void vtkParser::getPolyDataset(vtkParseData *data) {
 			if(inPolyPointData) {
 				if(checkDataScope(data->fileBuffer[i])) break;
 				polyPointSecParse(data, i);
+				data->foamData->depth++;
 				continue;
 			}
 			//if in just dataset portion

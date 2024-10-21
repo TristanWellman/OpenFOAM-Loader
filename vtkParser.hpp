@@ -43,6 +43,8 @@ class vtkParser {
 
 		typedef struct {
 			double polyDataset[MAXPOLY][POLYDATANSIZE];
+			int depth;
+			//std::vector<std::vector<double> > polyDataset;
 		} openFoamVtkFileData;
 
 		typedef struct {
