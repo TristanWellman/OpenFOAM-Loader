@@ -4,6 +4,8 @@
 #include <fstream>
 #include <cstring>
 #include <memory>
+#include <vector>
+#include <bits/stdc++.h>
 #include "vtkParser.hpp"
 
 vtkParser::vtkParser(char *vtkFile) : VTKFILE(vtkFile){}
@@ -41,6 +43,15 @@ int vtkParser::init() {
 	return (globalVtkData->lineCount>0);	
 }
 
+std::vector<std::string> vtkParser::tokenizeDataLine(char *currentLine) {
+	std::vector<std::string> ret;
+	std::string line(currentLine);
+	std::stringstream strstream(line);
+	while(std::getline(strstream, line, ' ')) 
+		ret.push_back(line);
+	return ret;
+}
+
 /* This function needs changed in future:
  * vtk datasets are defined by (name) value type I.E. POINTS 104 float.
  * this function is only catering to the polyData when it could grab everything for later use.
@@ -54,7 +65,27 @@ void vtkParser::getPolyDataset(vtkParseData *data) {
 
 		if(inDataset){
 			if(inPolyPointData) {
-
+				std::vector<std::string> tokenizedLine;
+				tokenizedLine = tokenizeDataLine(data->fileBuffer[i]);
+				if(tokenizedLine.size()<3) {
+					//std::cout << "ERROR:: invalid poly-array size" << std::endl;
+					return;
+				}
+				// this bs moves the vector space to polygons.
+				// I'm sorry this looks the way it does...
+				for(int k=0;k<tokenizedLine.size()&&k<MAXPOLY;k++) {
+					if(data->foamData->polyDataset[k][0]!=0.0000000000000000) continue;
+					for(int j=0;j<POLYDATANSIZE&&(k*POLYDATANSIZE+j)<tokenizedLine.size();j++) {
+						if(data->foamData->polyDataset[k][j]==0.0000000000000000) {
+							if(k*POLYDATANSIZE+j<=tokenizedLine.size()&&
+									!tokenizedLine[k*POLYDATANSIZE+j].empty()) {
+								std::string tmp = tokenizedLine[k*POLYDATANSIZE+j];
+								//data->foamData->polyDataset[k][j] = std::stod(tmp);
+								std::cout << tokenizedLine[k*POLYDATANSIZE+j] << " ";
+							} else break;
+						} 
+					}
+				}
 				continue;
 			}
 			//if in just dataset portion
@@ -62,11 +93,15 @@ void vtkParser::getPolyDataset(vtkParseData *data) {
 			if(polyCheck!=NULL) {
 				polyCheck++;
 				// polyCheck should be "104 float" with my test file
-				char *type = strtok(polyCheck, " ");
-				char *count = strstr(polyCheck, " ");
-				if(type!=NULL&&count!=NULL) {
+				char tmp[MAXLINESIZE];
+				snprintf(tmp, sizeof(tmp), "%s", polyCheck);
+				char *count = strtok(tmp, " ");
+				char *type = strstr(polyCheck, " ");
+				if(count!=NULL&&type!=NULL) {
+					type++;
+					inPolyPointData=1;
 					totalPoints = atoi(count++);
-					
+					// todo make use of count and type for different geometry types
 				} else {
 					// invalid or wrong polydata point area
 					continue;
