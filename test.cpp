@@ -13,7 +13,10 @@ int main() {
 	if(!parser.parse()) {
 		cout << "Error: failed to parse file!" << endl;
 		exit(1);
-	}	
+	}
+
+	parser.dumpOFOAMPolyDataset();
+
 	parser.freeVtkData();
 	return 0;
 }

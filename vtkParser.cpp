@@ -43,6 +43,17 @@ int vtkParser::init() {
 	return (globalVtkData->lineCount>0);	
 }
 
+void vtkParser::dumpOFOAMPolyDataset() {
+	int i,j;
+	for(i=0;i<MAXFILELINES;i++) {
+		for(j=0;j<POLYDATANSIZE;j++) {
+			if(globalVtkData->foamData->polyDataset[i][j]==0) return;
+			std::cout << globalVtkData->foamData->polyDataset[i][j] << " ";
+		}
+		std::cout << std::endl;
+	}
+}
+
 std::vector<std::string> vtkParser::tokenizeDataLine(char *currentLine) {
 	std::vector<std::string> ret;
 	std::string line(currentLine);
@@ -68,20 +79,20 @@ void vtkParser::getPolyDataset(vtkParseData *data) {
 				std::vector<std::string> tokenizedLine;
 				tokenizedLine = tokenizeDataLine(data->fileBuffer[i]);
 				if(tokenizedLine.size()<3) {
-					//std::cout << "ERROR:: invalid poly-array size" << std::endl;
+					std::cout << "ERROR:: invalid poly-array size: line " << i << std::endl;
 					return;
 				}
 				// this bs moves the vector space to polygons.
 				// I'm sorry this looks the way it does...
 				for(int k=0;k<tokenizedLine.size()&&k<MAXPOLY;k++) {
-					if(data->foamData->polyDataset[k][0]!=0.0000000000000000) continue;
+					if(data->foamData->polyDataset[k][0]!=0) continue;
 					for(int j=0;j<POLYDATANSIZE&&(k*POLYDATANSIZE+j)<tokenizedLine.size();j++) {
-						if(data->foamData->polyDataset[k][j]==0.0000000000000000) {
+						if(data->foamData->polyDataset[k][j]==0) {
 							if(k*POLYDATANSIZE+j<=tokenizedLine.size()&&
 									!tokenizedLine[k*POLYDATANSIZE+j].empty()) {
 								std::string tmp = tokenizedLine[k*POLYDATANSIZE+j];
-								//data->foamData->polyDataset[k][j] = std::stod(tmp);
-								std::cout << tokenizedLine[k*POLYDATANSIZE+j] << " ";
+								//std::cout << tokenizedLine[k*POLYDATANSIZE+j] << " ";
+								data->foamData->polyDataset[k][j] = std::stod(tmp);
 							} else break;
 						} 
 					}

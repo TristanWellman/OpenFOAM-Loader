@@ -21,6 +21,8 @@ class vtkParser {
 		int init();
 		int parse();
 
+		void dumpOFOAMPolyDataset();
+
 	private:
 		char *VTKFILE;
 		
