@@ -33,12 +33,12 @@ class vtkParser {
 		};
 
 		enum geometryTypes {
-        	STRUCTURED_GRID,
-        	UNSTRUCTURED_GRID,
-        	POLYDATA,
-        	STRUCTURED_POINTS,
-        	RECTILINEAR_GRID,
-        	FIELD
+			STRUCTURED_GRID,
+        		UNSTRUCTURED_GRID,
+        		POLYDATA,
+        		STRUCTURED_POINTS,
+        		RECTILINEAR_GRID,
+        		FIELD
 		};
 
 		typedef struct {
@@ -55,6 +55,7 @@ class vtkParser {
 
 		std::vector<std::string> tokenizeDataLine(char *currentLine);
 
+		void polyPointSecParse(vtkParseData *data, int line);
 		/* This function needs changed in future:
 		 * vtk datasets are defined by (name) value type I.E. POINTS 104 float.
 		 * this function is only catering to the polyData when it could grab everything for later use.

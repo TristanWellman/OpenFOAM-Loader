@@ -63,6 +63,41 @@ std::vector<std::string> vtkParser::tokenizeDataLine(char *currentLine) {
 	return ret;
 }
 
+void vtkParser::polyPointSecParse(vtkParseData *data, int line) {
+	std::vector<std::string> tokenizedLine;
+	tokenizedLine = tokenizeDataLine(data->fileBuffer[line]);
+	if(tokenizedLine.size()<3) {
+		std::cout << "ERROR:: invalid poly-array size: line " << line << std::endl;
+		return;
+	}
+	// this bs moves the vector space to polygons.
+	// I'm sorry this looks the way it does...
+	for(int k=0;k<tokenizedLine.size()&&k<MAXPOLY;k++) {
+		if(data->foamData->polyDataset[k][0]!=0) continue;
+		for(int j=0;j<POLYDATANSIZE&&(k*POLYDATANSIZE+j)<tokenizedLine.size();j++) {
+			if(data->foamData->polyDataset[k][j]==0) {
+				if(k*POLYDATANSIZE+j<=tokenizedLine.size()&&
+						!tokenizedLine[k*POLYDATANSIZE+j].empty()) {
+					std::string tmp = tokenizedLine[k*POLYDATANSIZE+j];
+					//std::cout << tokenizedLine[k*POLYDATANSIZE+j] << " ";
+					data->foamData->polyDataset[k][j] = std::stod(tmp);
+				} else break;
+			} 
+		}
+	}
+
+}
+
+int checkDataScope(char *line) {
+	//std::cout << line << std::endl;
+	std::string str(line);
+	if(str.find("DATASET")!= std::string::npos||
+			str.find("POINT_DATA")!= std::string::npos||
+			str.find("CELL_DATA")!= std::string::npos ||
+			str.find("LINES")!= std::string::npos) return 1;
+	return 0;
+} 
+
 /* This function needs changed in future:
  * vtk datasets are defined by (name) value type I.E. POINTS 104 float.
  * this function is only catering to the polyData when it could grab everything for later use.
@@ -76,27 +111,8 @@ void vtkParser::getPolyDataset(vtkParseData *data) {
 
 		if(inDataset){
 			if(inPolyPointData) {
-				std::vector<std::string> tokenizedLine;
-				tokenizedLine = tokenizeDataLine(data->fileBuffer[i]);
-				if(tokenizedLine.size()<3) {
-					std::cout << "ERROR:: invalid poly-array size: line " << i << std::endl;
-					return;
-				}
-				// this bs moves the vector space to polygons.
-				// I'm sorry this looks the way it does...
-				for(int k=0;k<tokenizedLine.size()&&k<MAXPOLY;k++) {
-					if(data->foamData->polyDataset[k][0]!=0) continue;
-					for(int j=0;j<POLYDATANSIZE&&(k*POLYDATANSIZE+j)<tokenizedLine.size();j++) {
-						if(data->foamData->polyDataset[k][j]==0) {
-							if(k*POLYDATANSIZE+j<=tokenizedLine.size()&&
-									!tokenizedLine[k*POLYDATANSIZE+j].empty()) {
-								std::string tmp = tokenizedLine[k*POLYDATANSIZE+j];
-								//std::cout << tokenizedLine[k*POLYDATANSIZE+j] << " ";
-								data->foamData->polyDataset[k][j] = std::stod(tmp);
-							} else break;
-						} 
-					}
-				}
+				if(checkDataScope(data->fileBuffer[i])) break;
+				polyPointSecParse(data, i);
 				continue;
 			}
 			//if in just dataset portion
