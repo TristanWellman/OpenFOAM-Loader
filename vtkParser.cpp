@@ -45,6 +45,7 @@ int vtkParser::init() {
 
 void vtkParser::dumpOFOAMPolyDataset() {
 	int i,j;
+	std::cout << "Total Polys: " << globalVtkData->foamData->depth << std::endl;
 	for(i=0;i<globalVtkData->foamData->depth;i++) {
 		for(j=0;j<POLYDATANSIZE;j++) {
 			//if(globalVtkData->foamData->polyDataset[i][j]==0) return;
