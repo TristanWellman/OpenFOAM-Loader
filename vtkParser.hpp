@@ -22,6 +22,11 @@ class vtkParser {
 			int expandedSize; //  104 * 3 = 312 : expanded
 		} vtkPointDataset; // DATASET scope followed by POINTS scope
 
+		typedef struct {
+			vtkPointDataset points;
+			int depth;
+			//std::vector<std::vector<double> > polyDataset;
+		} openFoamVtkFileData;
 
 		// constructor
 		vtkParser(char *vtkFile);
@@ -31,6 +36,8 @@ class vtkParser {
 		int parse();
 
 		void dumpOFOAMPolyDataset();
+
+		openFoamVtkFileData getOpenFoamData();
 
 	private:
 		char *VTKFILE;
@@ -60,13 +67,6 @@ class vtkParser {
 			K,
 			P,
 		};
-
-
-		typedef struct {
-			vtkPointDataset points;
-			int depth;
-			//std::vector<std::vector<double> > polyDataset;
-		} openFoamVtkFileData;
 
 		typedef struct {
 			char fileBuffer[MAXFILELINES][MAXLINESIZE];

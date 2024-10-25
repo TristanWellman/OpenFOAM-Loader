@@ -56,6 +56,10 @@ void vtkParser::dumpOFOAMPolyDataset() {
 	}
 }
 
+vtkParser::openFoamVtkFileData vtkParser::getOpenFoamData() {
+	return *globalVtkData->foamData;
+}
+
 std::vector<std::string> vtkParser::tokenizeDataLine(char *currentLine) {
 	std::vector<std::string> ret;
 	std::string line(currentLine);

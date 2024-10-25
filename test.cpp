@@ -15,7 +15,21 @@ int main() {
 		exit(1);
 	}
 
-	parser.dumpOFOAMPolyDataset();
+	// parser.dumpOFOAMPolyDataset();
+	
+	// manually dump dataset points
+	vtkParser::openFoamVtkFileData OFD = parser.getOpenFoamData();
+	int i,j;
+	std::cout << "Total Polys: " << OFD.points.size << std::endl;
+
+	for(i=0;i<OFD.points.size;i++) {
+		for(j=0;j<POLYDATANSIZE;j++) {
+			if(OFD.points.polyData[i].empty()) continue;
+			std::cout << OFD.points.polyData[i][j] << " ";
+		}
+		std::cout << std::endl;
+	}
+
 
 	parser.freeVtkData();
 	return 0;
