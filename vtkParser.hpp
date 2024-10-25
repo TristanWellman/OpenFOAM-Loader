@@ -14,6 +14,15 @@
 
 class vtkParser {
 	public:
+
+		typedef struct {
+			std::vector<std::vector<double> > polyData;
+			//double polyDataset[MAXPOLY][POLYDATANSIZE];
+			int size; // the 104 number in the .vtk file: POINTS 104 float
+			int expandedSize; //  104 * 3 = 312 : expanded
+		} vtkPointDataset; // DATASET scope followed by POINTS scope
+
+
 		// constructor
 		vtkParser(char *vtkFile);
 
@@ -27,6 +36,7 @@ class vtkParser {
 		char *VTKFILE;
 		
 		enum dataScopes {
+			NONE,
 			DATASET,
 			POINT_DATA,
 			CELL_DATA
@@ -41,8 +51,19 @@ class vtkParser {
         		FIELD
 		};
 
+		// these types are dataset names used in OpenFoam Vtk files.
+		enum OFOAMdatasetTypes {
+			OFNONE,
+			POINTS,
+			LINES,
+			U,
+			K,
+			P,
+		};
+
+
 		typedef struct {
-			double polyDataset[MAXPOLY][POLYDATANSIZE];
+			vtkPointDataset points;
 			int depth;
 			//std::vector<std::vector<double> > polyDataset;
 		} openFoamVtkFileData;
@@ -51,6 +72,9 @@ class vtkParser {
 			char fileBuffer[MAXFILELINES][MAXLINESIZE];
 			int lineCount;
 			openFoamVtkFileData *foamData;
+
+			int currentScope; // EX: DATASET POLYDATA
+			int currentSubScope; // EX: POINT_DATA
 		} vtkParseData;
 
 		vtkParseData *globalVtkData;
