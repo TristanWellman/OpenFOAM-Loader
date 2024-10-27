@@ -10,7 +10,7 @@ int main() {
 		cout << "Error: failed to initialize file!" << endl;
 		exit(1);
 	};	
-	if(!parser.parse()) {
+	if(!parser.parseOpenFoam()) {
 		cout << "Error: failed to parse file!" << endl;
 		exit(1);
 	}
@@ -30,6 +30,8 @@ int main() {
 		std::cout << std::endl;
 	}
 
+	vtkParser::vtkPointDataset p = 
+		parser.getVtkData<vtkParser::dataScopes>(vtkParser::DATASET, "LINES");
 
 	parser.freeVtkData();
 	return 0;

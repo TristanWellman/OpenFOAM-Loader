@@ -15,15 +15,32 @@
 class vtkParser {
 	public:
 
+		enum dataScopes {
+			NONE,
+			DATASET,
+			POINT_DATA,
+			CELL_DATA
+		};
+
+		enum geometryTypes {
+			STRUCTURED_GRID=4,
+        	UNSTRUCTURED_GRID,
+        	POLYDATA,
+        	STRUCTURED_POINTS,
+        	RECTILINEAR_GRID,
+        	FIELD
+		};
+
 		typedef struct {
 			std::vector<std::vector<double> > polyData;
-			//double polyDataset[MAXPOLY][POLYDATANSIZE];
 			int size; // the 104 number in the .vtk file: POINTS 104 float
 			int expandedSize; //  104 * 3 = 312 : expanded
 		} vtkPointDataset; // DATASET scope followed by POINTS scope
 
 		typedef struct {
 			vtkPointDataset points;
+			vtkPointDataset u_color;
+			vtkPointDataset lines; //indecies?
 			int depth;
 			//std::vector<std::vector<double> > polyDataset;
 		} openFoamVtkFileData;
@@ -33,8 +50,11 @@ class vtkParser {
 
 		void freeVtkData();
 		int init();
-		int parse();
+		int parseOpenFoam();
 
+		// Enum Template so user can use geometryTypes, dataScopes, or just an int
+		template<typename VTKENUM>
+		vtkPointDataset getVtkData(VTKENUM dataType, std::string dataName);
 		void dumpOFOAMPolyDataset();
 
 		openFoamVtkFileData getOpenFoamData();
@@ -42,22 +62,6 @@ class vtkParser {
 	private:
 		char *VTKFILE;
 		
-		enum dataScopes {
-			NONE,
-			DATASET,
-			POINT_DATA,
-			CELL_DATA
-		};
-
-		enum geometryTypes {
-			STRUCTURED_GRID,
-        		UNSTRUCTURED_GRID,
-        		POLYDATA,
-        		STRUCTURED_POINTS,
-        		RECTILINEAR_GRID,
-        		FIELD
-		};
-
 		// these types are dataset names used in OpenFoam Vtk files.
 		enum OFOAMdatasetTypes {
 			OFNONE,

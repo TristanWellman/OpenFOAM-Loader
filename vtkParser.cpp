@@ -6,6 +6,8 @@
 #include <memory>
 #include <vector>
 #include <sstream>
+#include <type_traits>
+
 #include "vtkParser.hpp"
 
 vtkParser::vtkParser(char *vtkFile) : VTKFILE(vtkFile){}
@@ -172,7 +174,40 @@ void vtkParser::getPolyDataset(vtkParseData *data) {
 	}
 }
 
-int vtkParser::parse() {
+template<typename VTKENUM>
+vtkParser::vtkPointDataset vtkParser::getVtkData(VTKENUM dataType, std::string dataName) {
+
+	vtkParser::vtkPointDataset ret = (vtkParser::vtkPointDataset){};
+	int T = dataType;
+	if(T==DATASET) {
+
+	} else if(T==POINT_DATA) {
+
+	} else if(T==CELL_DATA) {
+
+	} else if(T==STRUCTURED_GRID) {
+
+	} else if(T==UNSTRUCTURED_GRID) {
+
+	} else if(T==POLYDATA) {
+
+	} else if(T==STRUCTURED_POINTS) {
+
+	} else if(T==RECTILINEAR_GRID) {
+
+	} else if(T==FIELD) {
+
+	}
+
+	return ret;	
+}
+template vtkParser::vtkPointDataset vtkParser::getVtkData<int>(int, std::string);
+template vtkParser::vtkPointDataset vtkParser::getVtkData<vtkParser::dataScopes>(
+		vtkParser::dataScopes, std::string);
+template vtkParser::vtkPointDataset vtkParser::getVtkData<vtkParser::geometryTypes>(
+		vtkParser::geometryTypes, std::string);
+
+int vtkParser::parseOpenFoam() {
 	int isASCII=0;
 	int i;
 	// make sure file is readable
@@ -189,3 +224,7 @@ int vtkParser::parse() {
 	getPolyDataset(globalVtkData);	
 	return 1;
 }
+
+
+
+
