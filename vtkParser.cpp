@@ -10,7 +10,30 @@
 
 #include "vtkParser.hpp"
 
+vtkParser::vtkParser(){}
 vtkParser::vtkParser(char *vtkFile) : VTKFILE(vtkFile){}
+
+template<typename FSTR>
+void vtkParser::setVtkFile(FSTR fileName) {	
+	/* I'm not deleting this cuz it was almost beautiful...
+	
+	void *strptr = static_cast<void *>(fileName); 
+	std::string *tester = static_cast<std::string *>(strptr);
+	std::string outStr = *tester;
+	if(tester) { //it's an std::string
+		VTKFILE = static_cast<char *>(outStr.c_str());
+	} else VTKFILE = static_cast<char *>(fileName);
+
+	*/
+
+	std::string str(fileName);
+	VTKFILE = (char *)str.c_str();
+
+}
+template void vtkParser::setVtkFile<std::string>(std::string);
+template void vtkParser::setVtkFile<char *>(char *);
+template void vtkParser::setVtkFile<const char *>(const char *);
+
 
 void vtkParser::freeVtkData() {
 	free(globalVtkData->foamData);
@@ -88,11 +111,11 @@ void vtkParser::polyPointSecParse(vtkParseData *data, int lineNum) {
 	for(i=0;i<data->foamData->points.polyData.size();i++) {
 		if(data->foamData->points.polyData[i].empty()) {
 			if(i>0&&data->foamData->points.polyData[i-1][2]==0) i--;
-			goto GETOUTTATHISLOOP;
+			break;
 		}
 	}
-GETOUTTATHISLOOP:
 	startingVec = i;
+	//std::cout << startingVec << std::endl;
 	if(tokenizedLine.size()==2) {
 		data->foamData->points.polyData[startingVec].push_back(
 				std::stod(tokenizedLine[0]));
@@ -177,7 +200,7 @@ void vtkParser::getPolyDataset(vtkParseData *data) {
 template<typename VTKENUM>
 vtkParser::vtkPointDataset vtkParser::getVtkData(VTKENUM dataType, std::string dataName) {
 
-	vtkParser::vtkPointDataset ret = (vtkParser::vtkPointDataset){};
+	vtkParser::vtkPointDataset ret;
 	int T = dataType;
 	if(T==DATASET) {
 
@@ -221,7 +244,16 @@ int vtkParser::parseOpenFoam() {
 	}
 
 	// get poly data and put it into the foamData struct
+	globalVtkData->foamData->points	= 
+		vtkParser::getVtkData<vtkParser::dataScopes>(DATASET, "POINTS");
+	globalVtkData->foamData->lines = 
+		vtkParser::getVtkData<vtkParser::dataScopes>(DATASET, "LINES");
+	globalVtkData->foamData->u_velocity = 
+		vtkParser::getVtkData<vtkParser::dataScopes>(POINT_DATA, "U");
+
+	// this is temporary while I work on getVtkData
 	getPolyDataset(globalVtkData);	
+
 	return 1;
 }
 

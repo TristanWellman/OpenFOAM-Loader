@@ -39,14 +39,18 @@ class vtkParser {
 
 		typedef struct {
 			vtkPointDataset points;
-			vtkPointDataset u_color;
+			vtkPointDataset u_velocity;
 			vtkPointDataset lines; //indecies?
 			int depth;
 			//std::vector<std::vector<double> > polyDataset;
 		} openFoamVtkFileData;
 
 		// constructor
+		vtkParser();
 		vtkParser(char *vtkFile);
+
+		template<typename FSTR>
+		void setVtkFile(FSTR fileName);
 
 		void freeVtkData();
 		int init();
