@@ -8,11 +8,15 @@
 #pragma once
 
 #include "vtkParser.hpp"
-#ifdef AFTR_USE_VTKOF
+//#ifdef AFTR_USE_VTKOF
 #include "MGLAxes.h"
-#include "IndecedGeometryTriangles.h"
-#endif
+#include "IndexedGeometryTriangles.h"
+//#endif
 
+/*The constructor NEEDS to be initialized
+   BEFORE AfterBurner render loop or it'll parse all openFOAM
+   files every frame!
+ */
 class vtkOFRenderer : vtkParser {
 public:
 	/* openFoamPath - directory holding OpenFOAM case data entries
@@ -28,8 +32,18 @@ public:
 	*/
 	vtkOFRenderer(std::string openFoamPath);
 
+	int parseTracksFiles();
+
 	std::vector<std::string> getOpenFoamTimeStamps();
+
+	void renderTimeStampTrack(int timeStamp);
+	void renderImGuiTimeSelector();
 
 private:
 	std::string filePath;
+
+	std::vector<std::string> timeStamps;
+
+	std::vector<std::string> tracksFiles;
+	std::vector<vtkParser::openFoamVtkFileData> tracksFileData;
 };
