@@ -10,30 +10,25 @@
 
 #include "vtkParser.hpp"
 
-vtkParser::vtkParser(){}
+vtkParser::vtkParser() {}
 vtkParser::vtkParser(char *vtkFile) : VTKFILE(vtkFile){}
 
 template<typename FSTR>
 void vtkParser::setVtkFile(FSTR fileName) {	
-	/* I'm not deleting this cuz it was almost beautiful...
-	
-	void *strptr = static_cast<void *>(fileName); 
-	std::string *tester = static_cast<std::string *>(strptr);
-	std::string outStr = *tester;
-	if(tester) { //it's an std::string
-		VTKFILE = static_cast<char *>(outStr.c_str());
-	} else VTKFILE = static_cast<char *>(fileName);
-
-	*/
-
 	std::string str(fileName);
-	VTKFILE = (char *)str.c_str();
-
+	try { VTKFILE = str; }
+	catch (char *e) {
+		VTKASSERT(e==NULL,
+			"ERROR:: need to malloc vtkParser ptr objects\n%s\n", e);
+	}
 }
 template void vtkParser::setVtkFile<std::string>(std::string);
 template void vtkParser::setVtkFile<char *>(char *);
 template void vtkParser::setVtkFile<const char *>(const char *);
 
+void vtkParser::printVTKFILE() {
+	std::cout << VTKFILE << std::endl;
+}
 
 void vtkParser::freeVtkData() {
 	free(globalVtkData->foamData);
@@ -47,11 +42,18 @@ int vtkParser::init() {
 		(vtkParser::openFoamVtkFileData *)malloc(sizeof(vtkParser::openFoamVtkFileData));
 	
 	std::FILE *file = std::fopen(
-			vtkParser::VTKFILE, "r");
-	if(file==NULL) return 0;	
+			VTKFILE.c_str(), "r");
+
+	VTKASSERT(
+		file!=NULL, 
+		"ERROR:: Failed to Open file : %s\n", VTKFILE);
+
 	int lineCount = 0;
 	char line[256];
 	for(;fgets(line,sizeof(line),file)!=NULL;lineCount++);
+	VTKASSERT(
+		lineCount>0,
+		"Error:: OpenFoam File Buffer empty!\n");
 	
 	std::fseek(file, 0, SEEK_SET);
 	globalVtkData->lineCount = lineCount;
@@ -65,6 +67,8 @@ int vtkParser::init() {
 		//std::cout << globalVtkData->fileBuffer[lineCount];
 	}
 	std::fclose(file);
+
+	
 	return (globalVtkData->lineCount>0);	
 }
 
@@ -99,8 +103,8 @@ void vtkParser::polyPointSecParse(vtkParseData *data, int lineNum) {
 	// initialize 2D vector
 	int i,j;
 	if(data->foamData->points.polyData.size()==0) {
-		data->foamData->points.polyData.resize(
-				data->foamData->points.size);
+		data->foamData->points.polyData.reserve(
+			data->foamData->points.size);
 		//for(i=0;i<data->foamData->points.size;i++) 
 		//	data->foamData->points.polyData[i].resize(POLYDATANSIZE);
 	}
@@ -244,12 +248,12 @@ int vtkParser::parseOpenFoam() {
 	}
 
 	// get poly data and put it into the foamData struct
-	globalVtkData->foamData->points	= 
+	/*globalVtkData->foamData->points =
 		vtkParser::getVtkData<vtkParser::dataScopes>(DATASET, "POINTS");
 	globalVtkData->foamData->lines = 
 		vtkParser::getVtkData<vtkParser::dataScopes>(DATASET, "LINES");
 	globalVtkData->foamData->u_velocity = 
-		vtkParser::getVtkData<vtkParser::dataScopes>(POINT_DATA, "U");
+		vtkParser::getVtkData<vtkParser::dataScopes>(POINT_DATA, "U");*/
 
 	// this is temporary while I work on getVtkData
 	getPolyDataset(globalVtkData);	

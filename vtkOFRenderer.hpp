@@ -9,8 +9,8 @@
 
 #include "vtkParser.hpp"
 //#ifdef AFTR_USE_VTKOF
-#include "MGLAxes.h"
-#include "IndexedGeometryTriangles.h"
+//#include "MGLAxes.h"
+//#include "IndexedGeometryTriangles.h"
 //#endif
 
 /*The constructor NEEDS to be initialized
@@ -19,6 +19,7 @@
  */
 class vtkOFRenderer : vtkParser {
 public:
+
 	/* openFoamPath - directory holding OpenFOAM case data entries
 	*  Tree Ex:
 	*  OpenFoamTestCase/
@@ -34,7 +35,7 @@ public:
 
 	int parseTracksFiles();
 
-	std::vector<std::string> getOpenFoamTimeStamps();
+	std::vector<std::string> getOpenFoamTimeStamps(std::vector<std::string> dirs);
 
 	void renderTimeStampTrack(int timeStamp);
 	void renderImGuiTimeSelector();

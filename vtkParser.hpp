@@ -6,11 +6,22 @@
 #include <iostream>
 #include <vector>
 
+#include <fmt/core.h>
+
 #define MAXLINESIZE 256
 #define MAXFILELINES 100000
 
 #define POLYDATANSIZE 3
 #define MAXPOLY 100000
+
+#define VTKASSERT(err, ...) \
+	if (!(err)) { fprintf(stderr, __VA_ARGS__); exit(1); }
+
+// never forget the concat c macro
+#define VTKLOG(msg, ...) \
+	std::cout << fmt::format( \
+		"({}-{}):{}", __FILE__, __LINE__, __FUNCTION__)  \
+		<< " " << (fmt::format(msg, ## __VA_ARGS__)) << std::endl;
 
 class vtkParser {
 	public:
@@ -51,6 +62,7 @@ class vtkParser {
 
 		template<typename FSTR>
 		void setVtkFile(FSTR fileName);
+		void printVTKFILE();
 
 		void freeVtkData();
 		int init();
@@ -64,8 +76,9 @@ class vtkParser {
 		openFoamVtkFileData getOpenFoamData();
 
 	private:
-		char *VTKFILE;
-		
+		// has to be std string instead of ptr because of local ptr return garbage.
+		std::string VTKFILE;
+
 		// these types are dataset names used in OpenFoam Vtk files.
 		enum OFOAMdatasetTypes {
 			OFNONE,
