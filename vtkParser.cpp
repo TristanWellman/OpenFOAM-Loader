@@ -103,7 +103,7 @@ void vtkParser::polyPointSecParse(vtkParseData *data, int lineNum) {
 	// initialize 2D vector
 	int i,j;
 	if(data->foamData->points.polyData.size()==0) {
-		data->foamData->points.polyData.reserve(
+		data->foamData->points.polyData.resize(
 			data->foamData->points.size);
 		//for(i=0;i<data->foamData->points.size;i++) 
 		//	data->foamData->points.polyData[i].resize(POLYDATANSIZE);
