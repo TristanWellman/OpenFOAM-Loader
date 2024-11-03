@@ -6,9 +6,6 @@
 #include <iostream>
 #include <vector>
 
-#if defined __APPLE__
-#define FMT_HEADER_ONLY
-#endif
 #include <fmt/core.h>
 
 #define MAXLINESIZE 256

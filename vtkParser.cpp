@@ -31,16 +31,26 @@ void vtkParser::printVTKFILE() {
 }
 
 void vtkParser::freeVtkData() {
+#if defined __APPLE__
 	free(globalVtkData->foamData);
 	free(globalVtkData);
+#else
+	delete globalVtkData->foamData;
+	delete globalVtkData;
+#endif
 }
 
 int vtkParser::init() {
 
+#if defined __APPLE__
 	globalVtkData = (vtkParser::vtkParseData *)malloc(sizeof(vtkParser::vtkParseData));
 	globalVtkData->foamData = 
 		(vtkParser::openFoamVtkFileData *)malloc(sizeof(vtkParser::openFoamVtkFileData));
-	
+#else
+	globalVtkData = new vtkParseData;
+	globalVtkData->foamData = new openFoamVtkFileData;
+#endif
+
 	std::FILE *file = std::fopen(
 			VTKFILE.c_str(), "r");
 
@@ -78,8 +88,10 @@ void vtkParser::dumpOFOAMPolyDataset() {
 
 	for(i=0;i<globalVtkData->foamData->points.size;i++) {
 		for(j=0;j<POLYDATANSIZE;j++) {
-			if(globalVtkData->foamData->points.polyData[i].empty()) continue;
-			std::cout << globalVtkData->foamData->points.polyData[i][j] << " ";
+			if(globalVtkData->foamData->points.polyData.at(i).empty()||
+				globalVtkData->foamData->points.polyData.at(i).size()<j) continue;
+			//std::cout << globalVtkData->foamData->points.polyData[i][j] << " ";
+			VTKLOG("{}", globalVtkData->foamData->points.polyData.at(i).at(j));
 		}
 		std::cout << std::endl;
 	}
@@ -99,10 +111,18 @@ std::vector<std::string> vtkParser::tokenizeDataLine(char *currentLine) {
 }
 
 void vtkParser::polyPointSecParse(vtkParseData *data, int lineNum) {
-	
+
+	if (data == nullptr||
+		data->foamData == nullptr) {
+		VTKLOG("ERROR:: vtk parse data struct is nullptr!");
+		return;
+	}
+
 	// initialize 2D vector
 	int i,j;
-	if(data->foamData->points.polyData.size()==0) {
+	if(data->foamData->points.polyData.empty()) {
+		data->foamData->points.polyData =
+			std::vector<std::vector<double> >{};
 		data->foamData->points.polyData.resize(
 			data->foamData->points.size);
 		//for(i=0;i<data->foamData->points.size;i++) 
@@ -114,7 +134,8 @@ void vtkParser::polyPointSecParse(vtkParseData *data, int lineNum) {
 	int startingVec=0;
 	for(i=0;i<data->foamData->points.polyData.size();i++) {
 		if(data->foamData->points.polyData[i].empty()) {
-			if(i>0&&data->foamData->points.polyData[i-1][2]==0) i--;
+			if(i>0&&data->foamData->points.polyData[i-1].size()>2&&
+				data->foamData->points.polyData[i-1][2]==0) i--;
 			break;
 		}
 	}
@@ -128,7 +149,8 @@ void vtkParser::polyPointSecParse(vtkParseData *data, int lineNum) {
 	for(i=0;i<tokenizedLine.size()&&
 			i+startingVec<data->foamData->points.size;i++) {
 		for(j=0;j<POLYDATANSIZE;j++) {
-			if(tokenizedLine[i*POLYDATANSIZE+j].empty()) return;
+			if(tokenizedLine[i*POLYDATANSIZE+j].empty()||
+				tokenizedLine[i*POLYDATANSIZE+j].at(0)=='\n') return;
 
 			data->foamData->points.polyData[i+startingVec].push_back(
 					std::stod(tokenizedLine[i*POLYDATANSIZE+j]));
