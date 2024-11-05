@@ -17,11 +17,10 @@
 #define VTKASSERT(err, ...) \
 	if (!(err)) { fprintf(stderr, __VA_ARGS__); exit(1); }
 
-// never forget the concat c macro
 #define VTKLOG(msg, ...) \
 	std::cout << fmt::format( \
 		"({}-{}):{}", __FILE__, __LINE__, __FUNCTION__)  \
-		<< " " << (fmt::format(msg, ## __VA_ARGS__)) << std::endl;
+		<< " " << (fmt::format(msg, __VA_ARGS__)) << std::endl;
 
 class vtkParser {
 	public:

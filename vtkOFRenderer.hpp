@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <thread>
 #include "vtkParser.hpp"
 //#ifdef AFTR_USE_VTKOF
 //#include "MGLAxes.h"
@@ -41,10 +42,16 @@ public:
 	void renderImGuiTimeSelector();
 
 private:
+	std::vector<int> threadStates;
+	std::vector<vtkParser> threadParsers;
+	std::vector<std::thread> threads;
+
 	std::string filePath;
 
 	std::vector<std::string> timeStamps;
 
 	std::vector<std::string> tracksFiles;
 	std::vector<vtkParser::openFoamVtkFileData> tracksFileData;
+
+	void parseThread(int index);
 };

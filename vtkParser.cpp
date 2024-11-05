@@ -31,25 +31,16 @@ void vtkParser::printVTKFILE() {
 }
 
 void vtkParser::freeVtkData() {
-#if defined __APPLE__
-	free(globalVtkData->foamData);
-	free(globalVtkData);
-#else
+
 	delete globalVtkData->foamData;
 	delete globalVtkData;
-#endif
+
 }
 
 int vtkParser::init() {
 
-#if defined __APPLE__
-	globalVtkData = (vtkParser::vtkParseData *)malloc(sizeof(vtkParser::vtkParseData));
-	globalVtkData->foamData = 
-		(vtkParser::openFoamVtkFileData *)malloc(sizeof(vtkParser::openFoamVtkFileData));
-#else
 	globalVtkData = new vtkParseData;
 	globalVtkData->foamData = new openFoamVtkFileData;
-#endif
 
 	std::FILE *file = std::fopen(
 			VTKFILE.c_str(), "r");
@@ -89,7 +80,7 @@ void vtkParser::dumpOFOAMPolyDataset() {
 	for(i=0;i<globalVtkData->foamData->points.size;i++) {
 		for(j=0;j<POLYDATANSIZE;j++) {
 			if(globalVtkData->foamData->points.polyData.at(i).empty()||
-				globalVtkData->foamData->points.polyData.at(i).size()<j) continue;
+				globalVtkData->foamData->points.polyData.at(i).size()<=j) continue;
 			//std::cout << globalVtkData->foamData->points.polyData[i][j] << " ";
 			VTKLOG("{}", globalVtkData->foamData->points.polyData.at(i).at(j));
 		}

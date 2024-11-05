@@ -1,8 +1,9 @@
 /*Created by Tristan Wellman 2024*/
 
 #include <filesystem>
-#include "vtkOFRenderer.hpp"
+#include <functional>
 
+#include "vtkOFRenderer.hpp"
 
 std::vector<std::string> getDirectoryListing(std::string filePath) {
 	std::vector<std::string> dirs;
@@ -62,17 +63,43 @@ vtkOFRenderer::vtkOFRenderer(std::string openFoamPath) : filePath(openFoamPath) 
 
 }
 
+void vtkOFRenderer::parseThread(int index) {
+	
+	vtkParser* parser = &threadParsers.at(index);
+	
+	parser->setVtkFile(tracksFiles.at(index));
+	parser->printVTKFILE();
+	parser->init();
+	parser->parseOpenFoam();
+	tracksFileData.push_back(parser->getOpenFoamData());
+	parser->dumpOFOAMPolyDataset();
+	parser->freeVtkData();
+
+	threadStates.at(index) = 1;
+}
+
 int vtkOFRenderer::parseTracksFiles() {
 
-	int i;
+	threadStates.resize(tracksFiles.size(), 0);
+	threadParsers.resize(tracksFiles.size());
+	threads.resize(tracksFiles.size());
+
+	int i, finished=0;
 	for (i = 0; i < tracksFiles.size(); i++) {
-		setVtkFile(tracksFiles.at(i));
-		printVTKFILE();
-		init();
-		parseOpenFoam();
-		tracksFileData.push_back(getOpenFoamData());
-		dumpOFOAMPolyDataset();
-		freeVtkData();
+		threads.at(i) = std::thread(std::mem_fn(&vtkOFRenderer::parseThread), this, i);
+		VTKLOG("INFO:: Started parser thread for: {}", tracksFiles.at(i));
+	}
+	
+	while (!finished) {
+		int totalFinished = 0;
+		for (i = 0; i < threadStates.size();i++) {
+			if (threadStates.at(i)) totalFinished++;
+		}
+		if (totalFinished == threadStates.size() - 1) finished = 1;
+	}
+	for (i = 0; i < tracksFiles.size(); i++) {
+		threads.at(i).join();
+		VTKLOG("INFO:: Finished parser thread for: {}", tracksFiles.at(i));
 	}
 
 	return 0;
