@@ -52,7 +52,7 @@ int vtkParser::init() {
 	int lineCount = 0;
 	char line[256];
 	for(;fgets(line,sizeof(line),file)!=NULL;lineCount++);
-	VTKASSERT(
+VTKASSERT(
 		lineCount>0,
 		"Error:: OpenFoam File Buffer empty!\n");
 	
@@ -84,12 +84,28 @@ void vtkParser::dumpOFOAMPolyDataset() {
 			//std::cout << globalVtkData->foamData->points.polyData[i][j] << " ";
 			VTKLOG("{}", globalVtkData->foamData->points.polyData.at(i).at(j));
 		}
-		std::cout << std::endl;
+		std::cout << "Poly " << i << std::endl;
 	}
 }
 
 vtkParser::openFoamVtkFileData vtkParser::getOpenFoamData() {
 	return *globalVtkData->foamData;
+}
+
+int checkDataScope(char *line) {
+	//std::cout << line << std::endl;
+	std::string str(line);
+	if(str.find("DATASET")!= std::string::npos||
+			str.find("POINT_DATA")!= std::string::npos||
+			str.find("CELL_DATA")!= std::string::npos ||
+			str.find("LINES")!= std::string::npos) return 1;
+	return 0;
+} 
+
+// util function to seek to line in ifstream
+void seekToLine(std::ifstream &stream, int lineNum) {
+	std::string line;
+	for(int i=0;i<lineNum&&std::getline(stream, line);i++);
 }
 
 std::vector<std::string> vtkParser::tokenizeDataLine(char *currentLine) {
@@ -109,6 +125,8 @@ void vtkParser::polyPointSecParse(vtkParseData *data, int lineNum) {
 		return;
 	}
 
+	std::string dataBuffer;
+
 	// initialize 2D vector
 	int i,j;
 	if(data->foamData->points.polyData.empty()) {
@@ -116,49 +134,47 @@ void vtkParser::polyPointSecParse(vtkParseData *data, int lineNum) {
 			std::vector<std::vector<double> >{};
 		data->foamData->points.polyData.resize(
 			data->foamData->points.size);
-		//for(i=0;i<data->foamData->points.size;i++) 
-		//	data->foamData->points.polyData[i].resize(POLYDATANSIZE);
 	}
+
+	std::ifstream file(VTKFILE);
+	VTKASSERT(!file.fail(), "ERROR:: Failed to re-open vtk file!");
+
+	std::vector<std::string> pointBufferLines;
+	std::string curLine;
+	int totalSize=0;
+
+	// get all the data lines
+	seekToLine(file, lineNum);
+	for(i=0;i<data->foamData->points.size&&getline(file, curLine);i++) {
+		if(checkDataScope(data->fileBuffer[lineNum+i])) break;
+		pointBufferLines.push_back(curLine);
+		totalSize+=curLine.length();
+	}
+
+	// reserve and concat all strings to line buffer
+	dataBuffer.reserve(totalSize);
+	for(auto &str : pointBufferLines) {
+		if(str.at(str.length()-1)=='\n') str = str.substr(0, str.size()-1);
+		dataBuffer += str;
+		if(str.at(str.length()-1)!=' ') dataBuffer+=' ';
+	}
+
+	// tokenize the file buffer line into individual values
 	std::vector<std::string> tokenizedLine;
-	tokenizedLine = tokenizeDataLine(data->fileBuffer[lineNum]);	
+	tokenizedLine = tokenizeDataLine((char *)dataBuffer.c_str());
 
-	int startingVec=0;
-	for(i=0;i<data->foamData->points.polyData.size();i++) {
-		if(data->foamData->points.polyData[i].empty()) {
-			if(i>0&&data->foamData->points.polyData[i-1].size()>2&&
-				data->foamData->points.polyData[i-1][2]==0) i--;
-			break;
-		}
-	}
-	startingVec = i;
-	//std::cout << startingVec << std::endl;
-	if(tokenizedLine.size()==2) {
-		data->foamData->points.polyData[startingVec].push_back(
-				std::stod(tokenizedLine[0]));
-		return;
-	}
 	for(i=0;i<tokenizedLine.size()&&
-			i+startingVec<data->foamData->points.size;i++) {
+			i<data->foamData->points.size;i++) {
 		for(j=0;j<POLYDATANSIZE;j++) {
-			if(tokenizedLine[i*POLYDATANSIZE+j].empty()||
-				tokenizedLine[i*POLYDATANSIZE+j].at(0)=='\n') return;
-
-			data->foamData->points.polyData[i+startingVec].push_back(
-					std::stod(tokenizedLine[i*POLYDATANSIZE+j]));
+			if(tokenizedLine[i*POLYDATANSIZE+j].empty()) return;
+			if(tokenizedLine[i*POLYDATANSIZE+j]=="\n") continue;	
+			int pos = (i*POLYDATANSIZE+j);
+			data->foamData->points.polyData[i].push_back(
+					std::stod(tokenizedLine[pos]));
 		}
 	}
 	
 }
-
-int checkDataScope(char *line) {
-	//std::cout << line << std::endl;
-	std::string str(line);
-	if(str.find("DATASET")!= std::string::npos||
-			str.find("POINT_DATA")!= std::string::npos||
-			str.find("CELL_DATA")!= std::string::npos ||
-			str.find("LINES")!= std::string::npos) return 1;
-	return 0;
-} 
 
 /* This function needs changed in future:
  * vtk datasets are defined by (name) value type I.E. POINTS 104 float.
@@ -183,7 +199,7 @@ void vtkParser::getPolyDataset(vtkParseData *data) {
 				if(checkDataScope(data->fileBuffer[i])) break;
 				polyPointSecParse(data, i);
 				data->foamData->depth++;
-				continue;
+				break;
 			}
 
 			//if in just dataset portion

@@ -6,6 +6,9 @@
 #include <iostream>
 #include <vector>
 
+#if defined __APPLE__
+#define FMT_HEADER_ONLY
+#endif
 #include <fmt/core.h>
 
 #define MAXLINESIZE 256
@@ -20,7 +23,7 @@
 #define VTKLOG(msg, ...) \
 	std::cout << fmt::format( \
 		"({}-{}):{}", __FILE__, __LINE__, __FUNCTION__)  \
-		<< " " << (fmt::format(msg, __VA_ARGS__)) << std::endl;
+		<< " " << (fmt::format(msg, ## __VA_ARGS__)) << std::endl;
 
 class vtkParser {
 	public:
@@ -41,6 +44,13 @@ class vtkParser {
         	FIELD
 		};
 
+		struct vtkPoint {
+			float x,y,z;
+		};
+		struct vtkLine {
+			std::vector<int> indecies;
+		};
+
 		typedef struct {
 			std::vector<std::vector<double> > polyData;
 			int size; // the 104 number in the .vtk file: POINTS 104 float
@@ -49,13 +59,14 @@ class vtkParser {
 
 		typedef struct {
 			vtkPointDataset points;
+			std::vector<vtkParser::vtkLine> lines;
 			vtkPointDataset u_velocity;
-			vtkPointDataset lines; //indecies?
+			
 			int depth;
 			//std::vector<std::vector<double> > polyDataset;
 		} openFoamVtkFileData;
 
-		// constructor
+		// constructors
 		vtkParser();
 		vtkParser(char *vtkFile);
 
