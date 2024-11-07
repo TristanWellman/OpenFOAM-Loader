@@ -26,98 +26,98 @@
 		<< " " << (fmt::format(msg, ## __VA_ARGS__)) << std::endl;
 
 class vtkParser {
-	public:
+public:
 
-		enum dataScopes {
-			NONE,
-			DATASET,
-			POINT_DATA,
-			CELL_DATA
-		};
+	enum dataScopes {
+		NONE,
+		DATASET,
+		POINT_DATA,
+		CELL_DATA
+	};
 
-		enum geometryTypes {
-			STRUCTURED_GRID=4,
-        	UNSTRUCTURED_GRID,
-        	POLYDATA,
-        	STRUCTURED_POINTS,
-        	RECTILINEAR_GRID,
-        	FIELD
-		};
+	enum geometryTypes {
+		STRUCTURED_GRID = 4,
+		UNSTRUCTURED_GRID,
+		POLYDATA,
+		STRUCTURED_POINTS,
+		RECTILINEAR_GRID,
+		FIELD
+	};
 
-		struct vtkPoint {
-			float x,y,z;
-		};
-		struct vtkLine {
-			std::vector<int> indecies;
-		};
+	struct vtkPoint {
+		float x, y, z;
+	};
+	struct vtkLine {
+		std::vector<int> indecies;
+	};
 
-		typedef struct {
-			std::vector<std::vector<double> > polyData;
-			int size; // the 104 number in the .vtk file: POINTS 104 float
-			int expandedSize; //  104 * 3 = 312 : expanded
-		} vtkPointDataset; // DATASET scope followed by POINTS scope
+	typedef struct {
+		std::vector<std::vector<double> > polyData;
+		int size; // the 104 number in the .vtk file: POINTS 104 float
+		int expandedSize; //  104 * 3 = 312 : expanded
+	} vtkPointDataset; // DATASET scope followed by POINTS scope
 
-		typedef struct {
-			vtkPointDataset points;
-			std::vector<vtkParser::vtkLine> lines;
-			vtkPointDataset u_velocity;
-			
-			int depth;
-			//std::vector<std::vector<double> > polyDataset;
-		} openFoamVtkFileData;
+	typedef struct {
+		vtkPointDataset points;
+		std::vector<vtkParser::vtkLine> lines;
+		vtkPointDataset u_velocity;
 
-		// constructors
-		vtkParser();
-		vtkParser(char *vtkFile);
+		int depth;
+		//std::vector<std::vector<double> > polyDataset;
+	} openFoamVtkFileData;
 
-		template<typename FSTR>
-		void setVtkFile(FSTR fileName);
-		void printVTKFILE();
+	// constructors
+	vtkParser();
+	vtkParser(char* vtkFile);
 
-		void freeVtkData();
-		int init();
-		int parseOpenFoam();
+	template<typename FSTR>
+	void setVtkFile(FSTR fileName);
+	void printVTKFILE();
 
-		// Enum Template so user can use geometryTypes, dataScopes, or just an int
-		template<typename VTKENUM>
-		vtkPointDataset getVtkData(VTKENUM dataType, std::string dataName);
-		void dumpOFOAMPolyDataset();
+	void freeVtkData();
+	int init();
+	int parseOpenFoam();
 
-		openFoamVtkFileData getOpenFoamData();
+	// Enum Template so user can use geometryTypes, dataScopes, or just an int
+	template<typename VTKENUM>
+	vtkPointDataset getVtkData(VTKENUM dataType, std::string dataName);
+	void dumpOFOAMPolyDataset();
 
-	private:
-		// has to be std string instead of ptr because of local ptr return garbage.
-		std::string VTKFILE;
+	openFoamVtkFileData getOpenFoamData();
 
-		// these types are dataset names used in OpenFoam Vtk files.
-		enum OFOAMdatasetTypes {
-			OFNONE,
-			POINTS,
-			LINES,
-			U,
-			K,
-			P,
-		};
+private:
+	// has to be std string instead of ptr because of local ptr return garbage.
+	std::string VTKFILE;
 
-		typedef struct {
-			char fileBuffer[MAXFILELINES][MAXLINESIZE];
-			int lineCount;
-			openFoamVtkFileData *foamData;
+	// these types are dataset names used in OpenFoam Vtk files.
+	enum OFOAMdatasetTypes {
+		OFNONE,
+		POINTS,
+		LINES,
+		U,
+		K,
+		P,
+	};
 
-			int currentScope; // EX: DATASET POLYDATA
-			int currentSubScope; // EX: POINT_DATA
-		} vtkParseData;
+	typedef struct {
+		char fileBuffer[MAXFILELINES][MAXLINESIZE];
+		int lineCount;
+		openFoamVtkFileData* foamData;
 
-		vtkParseData *globalVtkData;
+		int currentScope; // EX: DATASET POLYDATA
+		int currentSubScope; // EX: POINT_DATA
+	} vtkParseData;
 
-		std::vector<std::string> tokenizeDataLine(char *currentLine);
+	vtkParseData* globalVtkData;
 
-		void polyPointSecParse(vtkParseData *data, int line);
-		/* This function needs changed in future:
-		 * vtk datasets are defined by (name) value type I.E. POINTS 104 float.
-		 * this function is only catering to the polyData when it could grab everything for later use.
-		 * */
-		void getPolyDataset(vtkParseData *data);	
+	std::vector<std::string> tokenizeDataLine(char* currentLine);
+
+	void polyPointSecParse(vtkParseData* data, int line);
+	/* This function needs changed in future:
+	 * vtk datasets are defined by (name) value type I.E. POINTS 104 float.
+	 * this function is only catering to the polyData when it could grab everything for later use.
+	 * */
+	void getPolyDataset(vtkParseData* data);
 };
 
 #endif

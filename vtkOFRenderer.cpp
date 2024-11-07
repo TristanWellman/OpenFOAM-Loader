@@ -5,6 +5,8 @@
 
 #include "vtkOFRenderer.hpp"
 
+using namespace Aftr;
+
 std::vector<std::string> getDirectoryListing(std::string filePath) {
 	std::vector<std::string> dirs;
 	if(!std::filesystem::is_directory(filePath)) return dirs;
@@ -33,8 +35,8 @@ std::vector<std::string> vtkOFRenderer::getOpenFoamTimeStamps(std::vector<std::s
 		while(splitStr(i, '/')!="");
 		if(splitStr(i, '\\') != "") continue;
 		try {
-			if(std::stoi(i)) ret.push_back(i);
-		} catch (const std::invalid_argument&) { continue; }
+			if(std::stoi(i)||i=="0") ret.push_back(i);
+		} catch (const std::invalid_argument &e) { continue; }
 	}
 	return ret;
 }
@@ -60,7 +62,7 @@ vtkOFRenderer::vtkOFRenderer(std::string openFoamPath) : filePath(openFoamPath) 
 		tracksFiles.push_back(fullPath);
 		std::cout << fullPath << std::endl;
 	}
-
+	isReady = false; // will be ready after parser is ran
 }
 
 void vtkOFRenderer::parseThread(int index) {
@@ -68,11 +70,11 @@ void vtkOFRenderer::parseThread(int index) {
 	vtkParser* parser = &threadParsers.at(index);
 	
 	parser->setVtkFile(tracksFiles.at(index));
-	parser->printVTKFILE();
+	//parser->printVTKFILE();
 	parser->init();
 	parser->parseOpenFoam();
 	tracksFileData.push_back(parser->getOpenFoamData());
-	parser->dumpOFOAMPolyDataset();
+	//parser->dumpOFOAMPolyDataset();
 	parser->freeVtkData();
 
 	threadStates.at(index) = 1;
@@ -102,13 +104,47 @@ int vtkOFRenderer::parseTracksFiles() {
 		VTKLOG("INFO:: Finished parser thread for: {}", tracksFiles.at(i));
 	}
 
+	isReady = true;
 	return 0;
 }
 
-void renderTimeStampTrack(int timeStamp) {
+WO *vtkOFRenderer::renderTimeStampTrack() {
+	WO* wo = WO::New();
+	
+	VTKASSERT(currentSelectedTimeStamp != NULL, 
+		"ERROR:: Uninitialized vtk timestamps!");
 
+
+
+	return wo;
 }
 
-void renderImGuiTimeSelector() {
+
+/*This must be ran in already initialized WOImGui istance*/
+void vtkOFRenderer::renderImGuivtkSettings() {
+
+
+	static int curTime = 0;
+	static const char* curItem = timeStamps.at(0).c_str();
+
+	ImGui::SetNextWindowSize(ImVec2(400, 200));
+	if (ImGui::Begin("Vtk View", NULL)) {
+
+		ImGui::BulletText("Select a timestamp to view!");
+		if (ImGui::BeginCombo("TimeStamps", curItem)) {
+			for (int n = 0; n < timeStamps.size(); n++)
+			{
+				bool is_selected = (curItem == timeStamps.at(n).c_str()); 
+				if (ImGui::Selectable(timeStamps.at(n).c_str(), is_selected))
+					curItem = timeStamps.at(n).c_str();
+					if (is_selected)
+						ImGui::SetItemDefaultFocus(); 
+			}
+			ImGui::EndCombo();
+		}
+	}
+	ImGui::End();
+
+	currentSelectedTimeStamp = curItem;
 
 }
