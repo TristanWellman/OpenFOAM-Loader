@@ -105,18 +105,75 @@ int vtkOFRenderer::parseTracksFiles() {
 	}
 
 	isReady = true;
+	currentSelectedTimeStamp = timeStamps.at(0).c_str();
 	return 0;
 }
 
-WO *vtkOFRenderer::renderTimeStampTrack() {
-	WO* wo = WO::New();
+void vtkOFRenderer::updateVtkTrackModel(WorldContainer* wl) {
+	static const char* pastTS = currentSelectedTimeStamp;
+	openFoamVtkFileData* pptr = new openFoamVtkFileData;
+	int i = 0;
+
+	if (currentSelectedTimeStamp != pastTS) {
+		for (i = 0; i < WOIDS.size(); i++) {
+			WO* tmp = wl->getWOByID(WOIDS.at(i));
+			wl->eraseViaWOptr(tmp);
+			delete tmp;
+		}
+		WOIDS.clear();
+		int i = 0;
+		for (i = 0; i < timeStamps.size(); i++) {
+			if (timeStamps.at(i).c_str() == currentSelectedTimeStamp) break;
+		}
+		pptr = &tracksFileData.at(i);
+		std::string point(ManagerEnvironmentConfiguration::getSMM() + "/models/OppenheimerBoxTimeMag10x10x10.wrl");
+		for (i = 0; i < pptr->points.polyData.size(); i++) {
+			WO* wo = WO::New(point, Vector(0.001, 0.001, 0.001), MESH_SHADING_TYPE::mstFLAT);
+			wo->setPosition(Vector(
+				pptr->points.polyData.at(i).at(0) * 50, pptr->points.polyData.at(i).at(1) * 50, pptr->points.polyData.at(i).at(2) * 50));
+			wo->renderOrderType = RENDER_ORDER_TYPE::roOPAQUE;
+			std::string id = "ball";
+			wo->setLabel(id);
+			wl->push_back(wo);
+			WOIDS.push_back(wo->getID());
+		}
+	}
+
+	pastTS = currentSelectedTimeStamp;
+}
+
+WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList) {
+	//WO* wo = WO::New();
 	
 	VTKASSERT(currentSelectedTimeStamp != NULL, 
 		"ERROR:: Uninitialized vtk timestamps!");
 
+	static const char* pastTS;
+	openFoamVtkFileData* pptr = new openFoamVtkFileData;
 
+	//if (currentSelectedTimeStamp != pastTS) {
+		int i = 0;
+		for (i = 0; i < timeStamps.size(); i++) {
+			if (timeStamps.at(i).c_str() == currentSelectedTimeStamp) break;
+		}
+		pptr = &tracksFileData.at(i);
+	//}
+	//int i;
+	std::string point(ManagerEnvironmentConfiguration::getSMM() + "/models/OppenheimerBoxTimeMag10x10x10.wrl");
+	for (i = 0; i < pptr->points.polyData.size();i++) {
+		WO* wo = WO::New(point, Vector(0.001, 0.001, 0.001), MESH_SHADING_TYPE::mstFLAT);
+		wo->setPosition(Vector(
+			pptr->points.polyData.at(i).at(0)*50, pptr->points.polyData.at(i).at(1)*50, pptr->points.polyData.at(i).at(2)*50));
+		wo->renderOrderType = RENDER_ORDER_TYPE::roOPAQUE;
+		std::string id = "ball";
+		wo->setLabel(id);
+		worldList->push_back(wo);
+		WOIDS.push_back(wo->getID());
+	}
 
-	return wo;
+	pastTS = currentSelectedTimeStamp;
+
+	return nullptr;
 }
 
 
@@ -131,12 +188,12 @@ void vtkOFRenderer::renderImGuivtkSettings() {
 	if (ImGui::Begin("Vtk View", NULL)) {
 
 		ImGui::BulletText("Select a timestamp to view!");
-		if (ImGui::BeginCombo("TimeStamps", curItem)) {
+		if (ImGui::BeginCombo("TimeStamps", currentSelectedTimeStamp)) {
 			for (int n = 0; n < timeStamps.size(); n++)
 			{
-				bool is_selected = (curItem == timeStamps.at(n).c_str()); 
+				bool is_selected = (currentSelectedTimeStamp == timeStamps.at(n).c_str());
 				if (ImGui::Selectable(timeStamps.at(n).c_str(), is_selected))
-					curItem = timeStamps.at(n).c_str();
+					currentSelectedTimeStamp = timeStamps.at(n).c_str();
 					if (is_selected)
 						ImGui::SetItemDefaultFocus(); 
 			}
@@ -145,6 +202,6 @@ void vtkOFRenderer::renderImGuivtkSettings() {
 	}
 	ImGui::End();
 
-	currentSelectedTimeStamp = curItem;
+	//currentSelectedTimeStamp = curItem;
 
 }

@@ -53,14 +53,17 @@ public:
 
 	std::vector<std::string> getOpenFoamTimeStamps(std::vector<std::string> dirs);
 
+	// Keeps model up to date with imgui selection
+	void updateVtkTrackModel(WorldContainer* wl);
+
 	/*Returns WO for you to push back in the world list*/
-	WO *renderTimeStampTrack();
+	WO *renderTimeStampTrack(WorldContainer* worldList);
 
 	/*This must be ran in already initialized WOImGui istance*/
 	void renderImGuivtkSettings();
-
+	
 private:
-	const char *currentSelectedTimeStamp;
+	const char* currentSelectedTimeStamp;
 
 	std::vector<int> threadStates;
 	std::vector<vtkParser> threadParsers;
@@ -72,6 +75,11 @@ private:
 
 	std::vector<std::string> tracksFiles;
 	std::vector<vtkParser::openFoamVtkFileData> tracksFileData;
+
+	std::vector<unsigned int> WOIDS;
+
+	std::vector< Vector > curVertexList;
+	std::vector< unsigned int > curIndexList;
 
 	void parseThread(int index);
 };
