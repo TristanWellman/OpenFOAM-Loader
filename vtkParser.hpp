@@ -25,6 +25,16 @@
 		"({}-{}):{}", __FILE__, __LINE__, __FUNCTION__)  \
 		<< " " << (fmt::format(msg, ## __VA_ARGS__)) << std::endl;
 
+// these types are dataset names used in OpenFoam Vtk files.
+enum OFOAMdatasetTypes {
+	OFNONE,
+	POINTS,
+	LINES,
+	U,
+	K,
+	P,
+};
+
 class vtkParser {
 public:
 
@@ -89,15 +99,6 @@ private:
 	// has to be std string instead of ptr because of local ptr return garbage.
 	std::string VTKFILE;
 
-	// these types are dataset names used in OpenFoam Vtk files.
-	enum OFOAMdatasetTypes {
-		OFNONE,
-		POINTS,
-		LINES,
-		U,
-		K,
-		P,
-	};
 
 	typedef struct {
 		char fileBuffer[MAXFILELINES][MAXLINESIZE];
@@ -110,7 +111,8 @@ private:
 
 	vtkParseData* globalVtkData;
 
-	std::vector<std::string> tokenizeDataLine(char* currentLine);
+	void tokenizeDataLine(char* currentLine,
+		std::vector<std::string>& ret);
 
 	void polyPointSecParse(vtkParseData* data, int line);
 	/* This function needs changed in future:

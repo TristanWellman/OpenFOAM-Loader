@@ -7,6 +7,8 @@
 #include <vector>
 #include <sstream>
 #include <type_traits>
+#include <unordered_map>
+#include <stdexcept>
 
 #include "vtkParser.hpp"
 
@@ -16,8 +18,9 @@ vtkParser::vtkParser(char* vtkFile) : VTKFILE(vtkFile) {}
 template<typename FSTR>
 void vtkParser::setVtkFile(FSTR fileName) {
 	std::string str(fileName);
-	try { VTKFILE = str; }
-	catch (char* e) {
+	try { 
+		VTKFILE = std::string(str);
+	} catch (char* e) {
 		VTKASSERT(e == NULL,
 			"ERROR:: need to malloc vtkParser ptr objects\n%s\n", e);
 	}
@@ -31,33 +34,30 @@ void vtkParser::printVTKFILE() {
 }
 
 void vtkParser::freeVtkData() {
-
-	delete globalVtkData->foamData;
+	if (globalVtkData && globalVtkData->foamData) {
+		delete globalVtkData->foamData;
+		globalVtkData->foamData = nullptr;
+	}
 	delete globalVtkData;
-
+	globalVtkData = nullptr;
 }
 
 int vtkParser::init() {
 
 	globalVtkData = new vtkParseData;
 	globalVtkData->foamData = new openFoamVtkFileData;
-
 	std::FILE* file = std::fopen(
 		VTKFILE.c_str(), "r");
 
-	VTKASSERT(
-		file != NULL,
-		"ERROR:: Failed to Open file : %s\n", VTKFILE);
+	if (file == NULL) {
+		VTKLOG("ERROR:: Failed to Open File {}", VTKFILE);
+		exit(1);
+	}
 
 	int lineCount = 0;
 	char line[256];
-	for (; fgets(line, sizeof(line), file) != NULL; lineCount++);
-	VTKASSERT(
-		lineCount > 0,
-		"Error:: OpenFoam File Buffer empty!\n");
 
 	std::fseek(file, 0, SEEK_SET);
-	globalVtkData->lineCount = lineCount;
 
 	// copy data from file to fileBuffer
 	for (lineCount = 0; fgets(line, sizeof(line), file) != NULL; lineCount++) {
@@ -67,7 +67,12 @@ int vtkParser::init() {
 		}
 		//std::cout << globalVtkData->fileBuffer[lineCount];
 	}
+	globalVtkData->lineCount = lineCount;
 	std::fclose(file);
+
+	VTKASSERT(
+		lineCount > 0,
+		"Error:: OpenFoam File Buffer empty!\n");
 
 
 	return (globalVtkData->lineCount > 0);
@@ -89,6 +94,9 @@ void vtkParser::dumpOFOAMPolyDataset() {
 }
 
 vtkParser::openFoamVtkFileData vtkParser::getOpenFoamData() {
+	if (!globalVtkData || !globalVtkData->foamData) {
+		throw std::runtime_error("ERROR: Attempted to access uninitialized globalVtkData->foamData");
+	}
 	return *globalVtkData->foamData;
 }
 
@@ -103,19 +111,22 @@ int checkDataScope(char* line) {
 }
 
 // util function to seek to line in ifstream
+// We do not do anything fancy for performance because we only skip 5 lines for this purpose.
+// This means that indexing and things for entire files actually make it slower. We only use once.
 void seekToLine(std::ifstream& stream, int lineNum) {
 	std::string line;
 	for (int i = 0; i < lineNum && std::getline(stream, line); i++);
 }
 
-std::vector<std::string> vtkParser::tokenizeDataLine(char* currentLine) {
-	std::vector<std::string> ret;
+void vtkParser::tokenizeDataLine(char* currentLine,
+	std::vector<std::string> &ret) {
+
 	std::string line(currentLine);
+	std::istringstream stream(line);
+	ret = { std::istream_iterator<std::string>(stream), std::istream_iterator<std::string>() };
 	std::stringstream strstream(line);
-	while (std::getline(strstream, line, ' '))
-		ret.push_back(line);
-	return ret;
 }
+
 
 void vtkParser::polyPointSecParse(vtkParseData* data, int lineNum) {
 
@@ -140,6 +151,7 @@ void vtkParser::polyPointSecParse(vtkParseData* data, int lineNum) {
 	VTKASSERT(!file.fail(), "ERROR:: Failed to re-open vtk file!");
 
 	std::vector<std::string> pointBufferLines;
+	pointBufferLines.reserve(data->foamData->points.size);
 	std::string curLine;
 	int totalSize = 0;
 
@@ -161,10 +173,11 @@ void vtkParser::polyPointSecParse(vtkParseData* data, int lineNum) {
 
 	// tokenize the file buffer line into individual values
 	std::vector<std::string> tokenizedLine;
-	tokenizedLine = tokenizeDataLine((char*)dataBuffer.c_str());
+	tokenizeDataLine((char*)dataBuffer.c_str(), tokenizedLine);
 
 	for (i = 0; i < tokenizedLine.size() &&
 		i < data->foamData->points.size; i++) {
+		data->foamData->points.polyData[i].reserve(POLYDATANSIZE);
 		for (j = 0; j < POLYDATANSIZE; j++) {
 			if (tokenizedLine[i * POLYDATANSIZE + j].empty()) return;
 			if (tokenizedLine[i * POLYDATANSIZE + j] == "\n") continue;
@@ -186,7 +199,7 @@ void vtkParser::polyPointSecParse(vtkParseData* data, int lineNum) {
 void vtkParser::getPolyDataset(vtkParseData* data) {
 
 	vtkParser::dataScopes currentDataScope = NONE;
-	vtkParser::OFOAMdatasetTypes currentDatasetType = OFNONE;
+	OFOAMdatasetTypes currentDatasetType = OFNONE;
 
 	int i;
 

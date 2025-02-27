@@ -22,10 +22,30 @@
 
 #include "MGLAxes.h"
 #include "IndexedGeometryTriangles.h"
+#include "MGLIndexedGeometry.h"
+#include "MGLPointSetShaderAccelerated.h"
+#include "GLSLShaderPointTesselatorBillboard.h"
+#include "MGLPointCloud.h"
 
 #include "vtkParser.hpp"
+#include "meshParse.h"
 
 using namespace Aftr;
+
+// This determines how many points to skip each iteration while rendering the model to save ram and cpu/gpu usage
+#define RENDER_RESOLUTION 1
+// l,w,h size of rendered points
+#define POINT_SIZE 5
+// position scaling from those super tiny values
+#define POSMUL 80
+
+#define MAXTHREADS 32
+
+/* 
+*  loads all WO models for every time stamp to speed up loading time.
+*  Warning: When enabled this loads ALL objects, it WILL use a lot of RAM be carful on low-end systems.
+*/
+#define PRELOAD_TIMESTAMPS true
 
 /*The constructor NEEDS to be initialized
    BEFORE AfterBurner render loop or it'll parse all openFOAM
@@ -57,12 +77,14 @@ public:
 	void updateVtkTrackModel(WorldContainer* wl);
 
 	/*Returns WO for you to push back in the world list*/
-	WO *renderTimeStampTrack(WorldContainer* worldList);
+	WO *renderTimeStampTrack(WorldContainer* worldList, Camera** cam);
 
 	/*This must be ran in already initialized WOImGui istance*/
 	void renderImGuivtkSettings();
 	
 private:
+
+	bool runLoop;
 	const char* currentSelectedTimeStamp;
 
 	std::vector<int> threadStates;
@@ -80,6 +102,10 @@ private:
 
 	std::vector< Vector > curVertexList;
 	std::vector< unsigned int > curIndexList;
+
+	std::vector<WO*> preLoadedWOs;
+
+	OEFOAMMesh *model;
 
 	void parseThread(int index);
 };
