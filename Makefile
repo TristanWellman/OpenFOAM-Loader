@@ -1,21 +1,29 @@
-CC= clang
+# This is useless unless you just do not want to make your own makefile for your project and want to modify this
 
-CFLAGS= -I/opt/homebrew/opt/fmt/include
-LFLAGS= -L/opt/homebrew/opt/fmt/lib -lfmt
+CC= g++
 
-COMMON_CPP= *.cpp
-COMMON_O= *.o
+CFLAGS= -O2
+# get rid of pthread if you are on windows
+LFLAGS= -lfmt -lpthread
 
-all: test
+SRCS = src/vtkParser.cpp \
+	   src/meshParse.c \
+	   src/bridethread.c
+OBJS = $(SRCS:.cpp=.o)
+OBJS := $(OBJS:.c=.o)
 
-test:
-	$(CC) -g $(COMMON_CPP) -c
-	$(CC) -g $(COMMON_O) -o test
 
-test_mac:
-	g++-14 -g $(CFLAGS) $(COMMON_CPP) -c
-	g++-14 -g $(CFLAGS) $(LFLAGS) $(COMMON_O) -o test
+.PHONY: all build clean
 
+all: build
+
+%.o: %.cpp
+	$(CC) $(CFLAGS) -c $< -o $@
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+build: $(OBJS)
 
 clean:
-	rm -f *.o *.exe test
+	rm -f src/*.o $(TARGET)
