@@ -70,7 +70,7 @@ public:
 	typedef struct {
 		vtkPointDataset points;
 		std::vector<vtkParser::vtkLine> lines;
-		vtkPointDataset u_velocity;
+		vtkPointDataset uMagnitude;
 
 		int depth;
 		//std::vector<std::vector<double> > polyDataset;
@@ -99,7 +99,6 @@ private:
 	// has to be std string instead of ptr because of local ptr return garbage.
 	std::string VTKFILE;
 
-
 	typedef struct {
 		char fileBuffer[MAXFILELINES][MAXLINESIZE];
 		int lineCount;
@@ -114,7 +113,7 @@ private:
 	void tokenizeDataLine(char* currentLine,
 		std::vector<std::string>& ret);
 
-	void polyPointSecParse(vtkParseData* data, int line);
+	int polyPointSecParse(vtkParseData* p, vtkPointDataset* data, int line);
 	/* This function needs changed in future:
 	 * vtk datasets are defined by (name) value type I.E. POINTS 104 float.
 	 * this function is only catering to the polyData when it could grab everything for later use.

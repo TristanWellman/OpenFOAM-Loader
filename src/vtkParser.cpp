@@ -55,7 +55,8 @@ int vtkParser::init() {
 	}
 
 	int lineCount = 0;
-	char line[256];
+	// I had to up this to 100000 because the .vtk files sometimes contain stupidly large lines for one dataset.
+	char line[100000];
 
 	std::fseek(file, 0, SEEK_SET);
 
@@ -64,6 +65,7 @@ int vtkParser::init() {
 		int i = 0;
 		for (i = 0; i < MAXLINESIZE && line[i] != '\0'; i++) {
 			globalVtkData->fileBuffer[lineCount][i] = line[i];
+			globalVtkData->fileBuffer[lineCount][i+1] = '\0';
 		}
 		//std::cout << globalVtkData->fileBuffer[lineCount];
 	}
@@ -128,40 +130,41 @@ void vtkParser::tokenizeDataLine(char* currentLine,
 }
 
 
-void vtkParser::polyPointSecParse(vtkParseData* data, int lineNum) {
+int vtkParser::polyPointSecParse(vtkParseData* p, vtkPointDataset* data, int lineNum) {
 
-	if (data == nullptr ||
-		data->foamData == nullptr) {
+	if (data == nullptr) {
 		VTKLOG("ERROR:: vtk parse data struct is nullptr!");
-		return;
+		return lineNum;
 	}
 
 	std::string dataBuffer;
 
 	// initialize 2D vector
-	int i, j;
-	if (data->foamData->points.polyData.empty()) {
-		data->foamData->points.polyData =
+	int i, j, finalLineNum = lineNum;
+	if (data->polyData.empty()) {
+		data->polyData =
 			std::vector<std::vector<double> >{};
-		data->foamData->points.polyData.resize(
-			data->foamData->points.size);
+		data->polyData.resize(
+			data->size);
 	}
 
 	std::ifstream file(VTKFILE);
 	VTKASSERT(!file.fail(), "ERROR:: Failed to re-open vtk file!");
 
 	std::vector<std::string> pointBufferLines;
-	pointBufferLines.reserve(data->foamData->points.size);
+	pointBufferLines.reserve(data->size);
 	std::string curLine;
 	int totalSize = 0;
 
 	// get all the data lines
 	seekToLine(file, lineNum);
-	for (i = 0; i < data->foamData->points.size && getline(file, curLine); i++) {
-		if (checkDataScope(data->fileBuffer[lineNum + i])) break;
+	for (i = 0; i < data->size && getline(file, curLine); i++) {
+		if (checkDataScope(p->fileBuffer[lineNum + i])) break;
+		//std::cout << i << ": " << curLine << "\n";
 		pointBufferLines.push_back(curLine);
 		totalSize += curLine.length();
 	}
+	finalLineNum = i;
 
 	// reserve and concat all strings to line buffer
 	dataBuffer.reserve(totalSize);
@@ -176,26 +179,22 @@ void vtkParser::polyPointSecParse(vtkParseData* data, int lineNum) {
 	tokenizeDataLine((char*)dataBuffer.c_str(), tokenizedLine);
 
 	for (i = 0; i < tokenizedLine.size() &&
-		i < data->foamData->points.size; i++) {
-		data->foamData->points.polyData[i].reserve(POLYDATANSIZE);
+		i < data->size; i++) {
+		data->polyData[i].reserve(POLYDATANSIZE);
 		for (j = 0; j < POLYDATANSIZE; j++) {
-			if (tokenizedLine[i * POLYDATANSIZE + j].empty()) return;
+			if (tokenizedLine[i * POLYDATANSIZE + j].empty()) return finalLineNum;
 			if (tokenizedLine[i * POLYDATANSIZE + j] == "\n") continue;
 			int pos = (i * POLYDATANSIZE + j);
-			data->foamData->points.polyData[i].push_back(
+			data->polyData[i].push_back(
 				std::stod(tokenizedLine[pos]));
 		}
 	}
 
 	file.close();
-
+	return finalLineNum;
 }
 
-/* This function needs changed in future:
- * vtk datasets are defined by (name) value type I.E. POINTS 104 float.
- * this function is only catering to the polyData when it could grab everything for later use.
- * */
- // WIP
+/*This is the function that obtains all the data for a set in the dataset I.E. POINTS*/
 void vtkParser::getPolyDataset(vtkParseData* data) {
 
 	vtkParser::dataScopes currentDataScope = NONE;
@@ -211,15 +210,24 @@ void vtkParser::getPolyDataset(vtkParseData* data) {
 
 			// run the parser for point data in vtk file
 			if (currentDatasetType == POINTS) {
-				if (checkDataScope(data->fileBuffer[i])) break;
-				polyPointSecParse(data, i);
+				if(checkDataScope(data->fileBuffer[i])) break;
+				int skip = polyPointSecParse(data, &data->foamData->points, i);
+				i += skip;
 				data->foamData->depth++;
+				currentDatasetType = OFNONE;
+				continue;
+			} else if(currentDatasetType == U) {
+				/*Get the Magnitude to be used for coloring*/
+				if(checkDataScope(data->fileBuffer[i])) break;
+				polyPointSecParse(data, &data->foamData->uMagnitude, i);
 				break;
 			}
 
-			//if in just dataset portion
-			char* polyCheck = strtok(data->fileBuffer[i], "POINTS");
-			if (polyCheck != NULL) {
+			//check subscopes
+			std::string *line = new std::string(data->fileBuffer[i]);
+			if (line->find("POINTS")!=std::string::npos) {
+				// I know strtok treats each letter as a delim but it works so...
+				char *polyCheck = strtok(data->fileBuffer[i], "POINTS");
 				polyCheck++;
 				// polyCheck should be "104 float" with my test file
 				char tmp[MAXLINESIZE];
@@ -234,58 +242,28 @@ void vtkParser::getPolyDataset(vtkParseData* data) {
 
 					data->foamData->points.expandedSize =
 						data->foamData->points.size * 3;
-				}
-				else {
-					// invalid or wrong polydata point area
-					continue;
+				} else continue;
+
+			} else {
+				if(line->find("U ") != std::string::npos) {
+					// U 3 11015 float
+					std::vector<std::string> tokens;
+					tokenizeDataLine(data->fileBuffer[i], tokens);
+
+					data->foamData->uMagnitude.size = std::stoi(tokens.at(2));
+
+					data->foamData->uMagnitude.expandedSize =
+						data->foamData->points.size * 3;
+
+					currentDatasetType = U;
 				}
 			}
+			delete line;
 		}
 
 		if (strstr(data->fileBuffer[i], "DATASET POLYDATA")) currentDataScope = DATASET;
 	}
 }
-
-template<typename VTKENUM>
-vtkParser::vtkPointDataset vtkParser::getVtkData(VTKENUM dataType, std::string dataName) {
-
-	vtkParser::vtkPointDataset ret;
-	int T = dataType;
-	if (T == DATASET) {
-
-	}
-	else if (T == POINT_DATA) {
-
-	}
-	else if (T == CELL_DATA) {
-
-	}
-	else if (T == STRUCTURED_GRID) {
-
-	}
-	else if (T == UNSTRUCTURED_GRID) {
-
-	}
-	else if (T == POLYDATA) {
-
-	}
-	else if (T == STRUCTURED_POINTS) {
-
-	}
-	else if (T == RECTILINEAR_GRID) {
-
-	}
-	else if (T == FIELD) {
-
-	}
-
-	return ret;
-}
-template vtkParser::vtkPointDataset vtkParser::getVtkData<int>(int, std::string);
-template vtkParser::vtkPointDataset vtkParser::getVtkData<vtkParser::dataScopes>(
-	vtkParser::dataScopes, std::string);
-template vtkParser::vtkPointDataset vtkParser::getVtkData<vtkParser::geometryTypes>(
-	vtkParser::geometryTypes, std::string);
 
 int vtkParser::parseOpenFoam() {
 	int isASCII = 0;
@@ -300,15 +278,6 @@ int vtkParser::parseOpenFoam() {
 		return 0;
 	}
 
-	// get poly data and put it into the foamData struct
-	/*globalVtkData->foamData->points =
-		vtkParser::getVtkData<vtkParser::dataScopes>(DATASET, "POINTS");
-	globalVtkData->foamData->lines =
-		vtkParser::getVtkData<vtkParser::dataScopes>(DATASET, "LINES");
-	globalVtkData->foamData->u_velocity =
-		vtkParser::getVtkData<vtkParser::dataScopes>(POINT_DATA, "U");*/
-
-		// this is temporary while I work on getVtkData
 	getPolyDataset(globalVtkData);
 
 	return 1;

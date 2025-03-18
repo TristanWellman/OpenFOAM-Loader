@@ -62,7 +62,7 @@ vtkOFRenderer::vtkOFRenderer(std::string openFoamPath) : filePath(openFoamPath) 
 	if (openFoamPath.at(openFoamPath.length() - 1) != '/') openFoamPath += '/';
 	for (int i = 0; i < timeStamps.size();i++) {
 		std::string fullPath = openFoamPath +
-			"postProcessing/sets/streamlines/" + timeStamps.at(i) + "/track0_p_k.vtk";
+			"postProcessing/sets/streamlines/" + timeStamps.at(i) + "/track0_U.vtk";
 		tracksFiles.push_back(fullPath);
 		std::cout << tracksFiles.at(i) << std::endl;
 	}
@@ -142,7 +142,7 @@ void vtkOFRenderer::updateVtkTrackModel(WorldContainer* wl) {
 	static size_t pastClock = clock();
 	static size_t curClock = clock();
 
-	static const char* pastTS = currentSelectedTimeStamp;
+	static const char* pastTS = "0";
 	openFoamVtkFileData* pptr = new openFoamVtkFileData;
 	int i = 0;
 
@@ -183,8 +183,11 @@ void vtkOFRenderer::updateVtkTrackModel(WorldContainer* wl) {
 #else 
 		//for (int j = 0; j < preLoadedWOs.size()-1; j++) {
 			WO* tmp = preLoadedWOs.at(i);
-			wl->push_back(tmp);
-			WOIDS.push_back(tmp->getID());
+			// If the WO's label is not a timestamp then something is invalid
+			if(tmp != nullptr && tmp->getLabel() != "") {
+				wl->push_back(tmp);
+				WOIDS.push_back(tmp->getID());
+			}
 		//}
 #endif
 	}
@@ -195,6 +198,30 @@ void vtkOFRenderer::updateVtkTrackModel(WorldContainer* wl) {
 			pastClock = clock();
 			if (curTime <= timeStamps.size()) curTime++;
 			if (curTime == timeStamps.size()) curTime = 0;
+		}
+	}
+}
+
+/*
+ * Map a magnitude value (3 per vertex) to RGB
+ */
+void mapMagnitudeToHSV(double mean, double stddev, std::vector<double> magnitude,
+						std::vector<Vector> &rgbVals) {
+	int l;
+	for(l = 0; l < magnitude.size(); l++) {
+		double val = magnitude.at(l);
+		double min = mean - stddev * 2.5;
+		double max = mean + stddev * 2.5;
+		double fin = 0.0;
+
+		if (val < min) fin = 0;
+		else if (val > max) fin = 1;
+		else {
+			fin = (val - min) / (max - min);
+			/* 240 / 360 is blue to magenta
+			 * 1 - fin is inverting the color wheel, this is for testing with more extreme values right now */
+			Vector hsv = { static_cast<float>((1-pow(fin,2)) * (240.0f/360.0f)),1.0f,1.0f };
+			rgbVals.push_back(AftrUtilities::convertHSVtoRGB(hsv));
 		}
 	}
 }
@@ -253,7 +280,24 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 
 	//std::string point(ManagerEnvironmentConfiguration::getSMM() + "/models/planetSunR10.wrl");
 	std::vector<Vector> pointLoc;
-	for (i = 0; i < pptr->points.polyData.size(); i += RENDER_RESOLUTION,j++) {
+	std::vector<aftrColor4ub> magnitude;
+	
+	//compute mean and standard deviation for the magnitude colors
+	float mean = 0, stddev = 0;
+	for(const auto &x : pptr->uMagnitude.polyData) {
+		for(double y : x) mean += y;
+	}
+	int sizex = pptr->uMagnitude.polyData.size();
+	int sizey = pptr->uMagnitude.polyData[0].size();
+	mean /= (sizex * sizey);
+	for (const auto& x : pptr->uMagnitude.polyData) {
+		for (double y : x) stddev += pow(y - mean, 2);
+	}
+	stddev /= ((sizex * sizey) - 1);
+	stddev = sqrt(stddev);
+
+	for (i = 0; i < pptr->points.polyData.size() && 
+		(pptr->points.polyData.size()==pptr->uMagnitude.polyData.size()); i += RENDER_RESOLUTION,j++) {
 #if !PRELOAD_TIMESTAMPS
 		WO* wo = WO::New(point, Vector(POINT_SIZE, POINT_SIZE, POINT_SIZE), MESH_SHADING_TYPE::mstFLAT);
 		wo->setPosition(Vector(
@@ -267,9 +311,20 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 		WOIDS.push_back(wo->getID());
 	}
 #else 
+
 		pointLoc.push_back(Vector(pptr->points.polyData.at(i).at(0) * POSMUL,
 			pptr->points.polyData.at(i).at(1) * POSMUL,
 			pptr->points.polyData.at(i).at(2) * POSMUL));
+
+		/*VTKLOG("{},{},{}\n", pptr->uMagnitude.polyData.at(i).at(0),
+			pptr->uMagnitude.polyData.at(i).at(1),
+			pptr->uMagnitude.polyData.at(i).at(2));*/
+		std::vector<Vector> rgbVals;
+		Vector finalColor = Vector();
+		mapMagnitudeToHSV(mean, stddev, pptr->uMagnitude.polyData.at(i),rgbVals);
+		for (int d = 0; d < rgbVals.size(); d++) finalColor = finalColor + rgbVals.at(d);
+		magnitude.push_back(aftrColor4ub(finalColor));
+
 		/* This was for when we were rendering spheres for each point.
 		preLoadedWOs.at(tloc).at(i) = WO::New(point, Vector(POINT_SIZE, POINT_SIZE, POINT_SIZE), MESH_SHADING_TYPE::mstFLAT);
 		preLoadedWOs.at(tloc).at(i)->setPosition(Vector(
@@ -286,7 +341,7 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 	preLoadedWOs.at(tloc) = WO::New();
 	MGLPointCloud *cloud = 
 		MGLPointCloud::New(preLoadedWOs.at(tloc), cam, true, false, false);
-	cloud->setPoints(pointLoc, aftrColor4ub(255, 255, 255, 255));
+	cloud->setPoints(pointLoc, magnitude);
 	cloud->setScale(Vector(POINT_SIZE, POINT_SIZE, POINT_SIZE));
 	preLoadedWOs.at(tloc)->setModel(cloud);
 	worldList->push_back(preLoadedWOs.at(tloc));
@@ -297,12 +352,36 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 // load up rest of object into memory
 #if PRELOAD_TIMESTAMPS
 	pointLoc.clear();
+	magnitude.clear();
+
 	for (i = 1; i < timeStamps.size() && i < MAXTHREADS && i < tracksFileData.size(); i++) {
 		pptr = &tracksFileData.at(i);
+
+		mean = 0; stddev = 0;
+		for (const auto& x : pptr->uMagnitude.polyData) {
+			for(double y : x) mean += y;
+		}
+		sizex = pptr->uMagnitude.polyData.size();
+		sizey = pptr->uMagnitude.polyData[0].size();
+		mean /= (sizex * sizey);
+		for (const auto& x : pptr->uMagnitude.polyData) {
+			for (double y : x) stddev += pow(y - mean, 2);
+		}
+		stddev /= ((sizex * sizey) - 1);
+		stddev = sqrt(stddev);
+
 		for (j = 0; j < pptr->points.polyData.size(); j += RENDER_RESOLUTION,k++) {
 			pointLoc.push_back(Vector(pptr->points.polyData.at(j).at(0) * POSMUL,
 				pptr->points.polyData.at(j).at(1) * POSMUL,
 				pptr->points.polyData.at(j).at(2) * POSMUL));
+
+			std::vector<Vector> rgbVals;
+			Vector finalColor = Vector();
+			mapMagnitudeToHSV(mean, stddev, pptr->uMagnitude.polyData.at(i), rgbVals);
+			for(int d = 0; d < rgbVals.size(); d++) finalColor += rgbVals.at(d);
+			finalColor /= rgbVals.size();
+			magnitude.push_back(aftrColor4ub(finalColor));
+
 			/*preLoadedWOs.at(i).at(j) =
 				WO::New(point, Vector(POINT_SIZE, POINT_SIZE, POINT_SIZE), MESH_SHADING_TYPE::mstFLAT);
 			preLoadedWOs.at(i).at(j)->setPosition(Vector(
@@ -316,9 +395,10 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 		}
 		preLoadedWOs.at(i) = WO::New();
 		cloud = MGLPointCloud::New(preLoadedWOs.at(i), cam, true, false, false);
-		cloud->setPoints(pointLoc, aftrColor4ub(255, 255, 255, 255));
+		cloud->setPoints(pointLoc, magnitude);
 		cloud->setScale(Vector(POINT_SIZE, POINT_SIZE, POINT_SIZE));
 		preLoadedWOs.at(i)->setModel(cloud);
+		preLoadedWOs.at(i)->setLabel(timeStamps.at(i));
 		WOIDS.push_back(preLoadedWOs.at(i)->getID());
 		VTKLOG("LOADED:: WO#{} at timestamp: {}", preLoadedWOs.at(i)->getID(), timeStamps.at(i)); 
 	};
@@ -347,8 +427,7 @@ void vtkOFRenderer::renderImGuivtkSettings() {
 				bool is_selected = (currentSelectedTimeStamp == timeStamps.at(n).c_str());
 				if (ImGui::Selectable(timeStamps.at(n).c_str(), is_selected))
 					currentSelectedTimeStamp = timeStamps.at(n).c_str();
-					if (is_selected)
-						ImGui::SetItemDefaultFocus(); 
+					if(is_selected) ImGui::SetItemDefaultFocus(); 
 			}
 			ImGui::EndCombo();
 		}

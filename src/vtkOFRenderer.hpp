@@ -19,6 +19,7 @@
 #include "WOImGui.h"
 #include "AftrImGuiIncludes.h"
 #include "AftrGLRendererBase.h"
+#include "AftrUtilities.h"
 
 #include "MGLAxes.h"
 #include "IndexedGeometryTriangles.h"
@@ -33,7 +34,7 @@
 using namespace Aftr;
 
 // This determines how many points to skip each iteration while rendering the model to save ram and cpu/gpu usage
-#define RENDER_RESOLUTION 1
+#define RENDER_RESOLUTION 6
 // l,w,h size of rendered points
 #define POINT_SIZE 5
 // position scaling from those super tiny values
