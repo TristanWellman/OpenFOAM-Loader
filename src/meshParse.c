@@ -350,16 +350,139 @@ void *parseFoamPoints(FILE *f, OEFOAMMesh *mesh) {
 	return NULL;
 }
 
+void OEParseMagnitudeTimeStamp(char *path, int timeStamp, OEFOAMMesh *mesh) {
+	if(path==NULL||mesh==NULL) return;
+	/* Path should look similar to: C:/repos/aburn/usr/modules/NewModule/cubeTest/pitzDaily/1/U */
+	FILE *magFile = fopen(path, "r");
+	if(magFile==NULL) return;
+
+	struct OEMagnitude defaultMagnitude = {0};
+	if(mesh->magnitudeTS==NULL || 
+		memcmp(mesh->magnitudeTS, &defaultMagnitude, sizeof(struct OEMagnitude)) == 0) {
+		mesh->maxTS = MAXTIMESTAMPS;
+		mesh->sizeTS = 0;
+
+		mesh->magnitudeTS = calloc(mesh->maxTS, sizeof(struct OEMagnitude));
+	}
+
+	int i, cpyPrev=1, j, l=0;
+	struct OEMagnitude *mag = &mesh->magnitudeTS[mesh->sizeTS];
+	mesh->sizeTS++;
+
+	mag->timeStamp = timeStamp;
+	mag->values.cap = MAXMAGDATA;
+	mag->values.size = 0;
+	mag->values.total = 0;
+	mag->values.data = calloc(mag->values.cap, sizeof(float *));
+
+	char line[2048];
+	char *prevLine = calloc(2048, sizeof(char));
+
+	for(i=0;fgets(line, sizeof(line), magFile)!=NULL;i++) {
+		/*Look for point count*/
+		if(i>0&&(!strcmp(line, "(\n")||!strcmp(line, "(\r\n"))&&prevLine!=NULL) {
+			mag->values.cap = atoi(prevLine)+1;
+			mag->values.data = (float **)realloc(mag->values.data, 
+					sizeof(float *)*mag->values.cap);
+			cpyPrev=0;
+			continue;			
+		}
+
+		if(line[0]=='('&&line[1]!='\n') {
+			char *lcpy = calloc(strlen(line)+1, sizeof(char));
+			strcpy(lcpy, line);
+			lcpy++;
+			mag->values.data[mag->values.size] = calloc(ISIZE, sizeof(float));
+			for(j=0;j<VSIZE;j++) {
+				while(lcpy[0]==' '||lcpy[0]=='(') lcpy++;
+				// I want you to know I hate that MSVC does not allow for varied array sizes I.E. buf[strlen(str)]
+				char *buf = calloc(strlen(lcpy)+1, sizeof(char));
+				int l = 0;
+				for (; lcpy[0] != ' ' && lcpy[0] != '\n' && lcpy[0] != ')';
+					lcpy++, l++) buf[l] = lcpy[0];
+				buf[l] = '\0';
+				mag->values.data[mag->values.size][j] = atof(buf);
+				mag->values.total++;
+				free(buf);
+			}
+			mag->values.size++;
+			continue;
+		}
+
+		/*check for end of file
+		 * All these compares are probably pretty slow*/
+		if(!strcmp(line, ")\n")||!strcmp(line, ")")||!strcmp(line, ")\r\n")) break;
+		if(cpyPrev) strcpy(prevLine, line);
+	}
+
+	free(prevLine);
+
+}
+
+/*Parse single integer OpenFOAM mesh file 
+ *Looks like:
+ * 25061
+ * (
+ * 1
+ * 2 . . . 
+ */
+void parseSingleOFAtoiStream(FILE *f, int **ptr, int *size, int *cap) {
+	if(f == NULL) return;
+
+	int i, j, k, cpyPrev=1;
+	char line[2048];
+	char* prevLine = calloc(2048, sizeof(char));
+	for (i = 0; fgets(line, sizeof(line), f) != NULL; i++) {
+		/*Look for point count*/
+		if (i > 0 && (!strcmp(line, "(\n") || !strcmp(line, "(\r\n")) && prevLine != NULL) {
+			*cap = atoi(prevLine) + 1;
+			if(*ptr != NULL) free(*ptr);
+			*ptr = calloc(*cap, sizeof(int));
+			cpyPrev = 0;
+			continue;
+		}
+	
+		if(!cpyPrev) {
+			char* buf = calloc(strlen(line)+1, sizeof(char));
+			for(j=0;line[j]!='\n'&&line[j]!='\r'; j++) buf[j] = line[j];
+			(*ptr)[*size] = atoi(buf);
+			(*size)++;
+			free(buf);
+		}
+
+		if(!strcmp(line, ")\n") || !strcmp(line, ")") || !strcmp(line, ")\r\n")) break;
+		if(cpyPrev) strcpy(prevLine, line);
+	}
+
+	free(prevLine);
+}
+
+void parseFoamOwner(FILE *fowner, OEFOAMMesh *mesh) {
+	parseSingleOFAtoiStream(fowner, &mesh->owner, &mesh->osize, &mesh->ocap);
+}
+
+void parseFoamNeighbor(FILE *fneighbour, OEFOAMMesh *mesh) {
+	parseSingleOFAtoiStream(fneighbour, &mesh->neighbour, &mesh->nsize, &mesh->ncap);
+}
+
 void OEParseFOAMObj(char *path, OEFOAMMesh *mesh) {
 	if(mesh==NULL) mesh = calloc(1, sizeof(OEFOAMMesh));
+	mesh->magnitudeTS = NULL;
 
 	char *points = calloc(strlen(path)+128, sizeof(char));
 	char *faces = calloc(strlen(path)+128, sizeof(char));
+	char *owner = calloc(strlen(path) + 128, sizeof(char));
+	char *neighbour = calloc(strlen(path) + 128, sizeof(char));
 	sprintf(points, "%s/points", path);
 	sprintf(faces, "%s/faces", path);
+	sprintf(owner, "%s/owner", path);
+	sprintf(neighbour, "%s/neighbour", path);
 
 	FILE *fpoints = fopen(points, "r");
 	FILE *ffaces = fopen(faces, "r");
+	FILE *fowner = fopen(owner, "r");
+	FILE *fneighbour = fopen(neighbour, "r");
+
 	//OEThreadArg pargs = {(void *)fpoints, (void *)mesh};
 	//OEThreadArg fargs = {(void *)ffaces, (void *)mesh};
 	
@@ -378,12 +501,29 @@ void OEParseFOAMObj(char *path, OEFOAMMesh *mesh) {
 	mesh->indices.size = 0;
 	mesh->indices.total = 0;
 	mesh->indices.data = calloc(mesh->indices.cap, sizeof(uint16_t*));
+	mesh->osize = 0;
+	mesh->nsize = 0;
+	mesh->ocap = 0;
+	mesh->ncap = 0;
+	/*Size gets allocated after size is found in the file*/
+	mesh->owner = NULL;
+	mesh->neighbour = NULL;
 
 	parseFoamPoints(fpoints, mesh);
 	parseFoamFaces(ffaces, mesh);
 
+	parseFoamOwner(fowner, mesh);
+	parseFoamNeighbor(fneighbour, mesh);
+
 	free(points);
 	free(faces);
+	free(owner);
+	free(neighbour);
+
+	fclose(ffaces);
+	fclose(fpoints);
+	fclose(fowner);
+	fclose(fneighbour);
 }
 
 void OEParseObj(char *file, OEMesh *mesh) {

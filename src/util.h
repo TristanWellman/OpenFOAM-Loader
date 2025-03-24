@@ -62,13 +62,13 @@ typedef struct {
 
 /*Normalization macro
  * takes in a Vec3 */
-#define WNORM(_x) ((__typeof__(_x)){ \
+#define WNORM(_x) ((__typeof__(_x)) { \
 	(_x.x)*QISQRT((_x.x*_x.x)+(_x.y*_x.y)+(_x.z*_x.z)), \
 	(_x.y)*QISQRT((_x.x*_x.x)+(_x.y*_x.y)+(_x.z*_x.z)), \
 	(_x.z)*QISQRT((_x.x*_x.x)+(_x.y*_x.y)+(_x.z*_x.z))})
 
  /*
-  * This is a linear approcimation macro
+  * This is a linear approximation macro
   * Very useless unless you specifically need NEAR values and are fine with the extra cost.
   */
 #define APPRPRECISION 0.01

@@ -27,6 +27,7 @@
 #include "MGLPointSetShaderAccelerated.h"
 #include "GLSLShaderPointTesselatorBillboard.h"
 #include "MGLPointCloud.h"
+#include "GLSLShaderDefaultGL32PerVertexColor.h"
 
 #include "vtkParser.hpp"
 #include "meshParse.h"
@@ -34,7 +35,7 @@
 using namespace Aftr;
 
 // This determines how many points to skip each iteration while rendering the model to save ram and cpu/gpu usage
-#define RENDER_RESOLUTION 6
+#define RENDER_RESOLUTION 10
 // l,w,h size of rendered points
 #define POINT_SIZE 5
 // position scaling from those super tiny values
@@ -86,6 +87,7 @@ public:
 private:
 
 	bool runLoop;
+	bool enableStreamLines;
 	const char* currentSelectedTimeStamp;
 
 	std::vector<int> threadStates;
@@ -100,11 +102,13 @@ private:
 	std::vector<vtkParser::openFoamVtkFileData> tracksFileData;
 
 	std::vector<unsigned int> WOIDS;
+	std::vector<unsigned int> MESHWOIDS;
 
 	std::vector< Vector > curVertexList;
 	std::vector< unsigned int > curIndexList;
 
 	std::vector<WO*> preLoadedWOs;
+	std::vector<WO*> preLoadedOFMeshTS;
 
 	OEFOAMMesh *model;
 

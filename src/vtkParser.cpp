@@ -149,7 +149,10 @@ int vtkParser::polyPointSecParse(vtkParseData* p, vtkPointDataset* data, int lin
 	}
 
 	std::ifstream file(VTKFILE);
-	VTKASSERT(!file.fail(), "ERROR:: Failed to re-open vtk file!");
+	while(file.fail()) {
+		VTKLOG("ERROR:: Failed to re-open vtk file! Retrying...");
+		file = std::ifstream(VTKFILE);
+	}
 
 	std::vector<std::string> pointBufferLines;
 	pointBufferLines.reserve(data->size);
