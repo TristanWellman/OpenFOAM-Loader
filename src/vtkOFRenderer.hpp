@@ -34,6 +34,8 @@
 
 using namespace Aftr;
 
+typedef double(*HSVFUN)(double val);
+
 // This determines how many points to skip each iteration while rendering the model to save ram and cpu/gpu usage
 #define RENDER_RESOLUTION 10
 // l,w,h size of rendered points
@@ -41,7 +43,7 @@ using namespace Aftr;
 // position scaling from those super tiny values
 #define POSMUL 80
 
-#define MAXTHREADS 32
+#define MAXTHREADS 40
 
 /* 
 *  loads all WO models for every time stamp to speed up loading time.
@@ -89,6 +91,7 @@ private:
 	bool runLoop;
 	bool enableStreamLines;
 	const char* currentSelectedTimeStamp;
+
 
 	std::vector<int> threadStates;
 	std::vector<vtkParser> threadParsers;

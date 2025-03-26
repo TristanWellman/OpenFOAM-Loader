@@ -59,6 +59,9 @@ vtkOFRenderer::vtkOFRenderer(std::string openFoamPath) : filePath(openFoamPath) 
 	VTKASSERT(!timeStamps.empty(),
 		"ERROR:: Failed to retrieve OpenFoam case Time Stamps!");
 	
+	std::sort(timeStamps.begin(), timeStamps.end(), [](const std::string& a, const std::string& b) {
+		return std::stod(a) < std::stod(b);});
+
 	if (openFoamPath.at(openFoamPath.length() - 1) != '/') openFoamPath += '/';
 	for (int i = 0; i < timeStamps.size();i++) {
 		std::string fullPath = openFoamPath +
@@ -105,42 +108,24 @@ int vtkOFRenderer::parseTracksFiles() {
 
 	threadStates.resize(tracksFiles.size(), 0);
 	threadParsers.resize(tracksFiles.size());
-	// We'll use our own vector for active threads
+
+	int nextIndex = 0;
 	std::vector<std::thread> activeThreads;
 
-	size_t nextIndex = 0;
-	const size_t totalFiles = tracksFiles.size();
-
-	// Loop until all timestamps have been processed and all threads have finished
-	while (nextIndex < totalFiles || !activeThreads.empty()) {
-		// Launch new threads if we haven't reached the MAXTHREADS limit and there are still timestamps to process
-		while (activeThreads.size() < MAXTHREADS && nextIndex < totalFiles) {
-			if (!tracksFiles.at(nextIndex).empty()) {
-				// Launch the parse thread for timestamp nextIndex
+	while(nextIndex < tracksFiles.size() || !activeThreads.empty()) {
+		while(activeThreads.size() < MAXTHREADS && nextIndex < tracksFiles.size()) {
+			if(!tracksFiles.at(nextIndex).empty()) {
 				activeThreads.push_back(std::thread(std::mem_fn(&vtkOFRenderer::parseThread), this, nextIndex));
 				VTKLOG("INFO:: Started parser thread for: {}", tracksFiles.at(nextIndex));
 			}
 			nextIndex++;
 		}
-
-		// Join threads that have finished.
-		// Since std::thread doesn't have an "is finished" method,
-		// we join each thread to wait for its completion.
-		for (auto it = activeThreads.begin(); it != activeThreads.end(); ) {
-			if (it->joinable()) {
-				it->join();
-				// Log that this thread is finished.
-				// (If you need to log using the tracksFiles index, consider storing that index along with the thread.)
-				VTKLOG("INFO:: Finished parser thread");
-				// Remove the finished thread from the active vector.
-				it = activeThreads.erase(it);
-			}
-			else {
-				++it;
-			}
+		for(auto t = activeThreads.begin();t!=activeThreads.end();) {
+			if(t->joinable()) {
+				t->join();
+				t = activeThreads.erase(t);
+			} else t++;
 		}
-
-		// Sleep briefly to avoid busy-waiting.
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 
@@ -226,7 +211,7 @@ void vtkOFRenderer::updateVtkTrackModel(WorldContainer* wl) {
 	pastTS = currentSelectedTimeStamp;
 	curClock = clock();
 	if (runLoop) {
-		if (curClock >= (pastClock+CLOCKS_PER_SEC)/2) {
+		if (curClock >= (pastClock+CLOCKS_PER_SEC)/1.5) {
 			pastClock = clock();
 			if (curTime <= timeStamps.size()) curTime++;
 			if (curTime == timeStamps.size()) curTime = 0;
@@ -234,11 +219,19 @@ void vtkOFRenderer::updateVtkTrackModel(WorldContainer* wl) {
 	}
 }
 
+double modelHueCalc(double val) {
+	return (double)(240.0f * (1.0f - val) / 360.0f);
+}
+double streamLinesHueCalc(double val) {
+	return (double)((1.0f - pow(val,2)) * (240.0f / 360.0f));
+}
+
 /*
  * Map a magnitude value (3 per vertex) to RGB
+ * Calc is the function to determine Hue. It must take in and return a double.
  */
 void mapMagnitudeToHSV(double mean, double stddev, std::vector<double> magnitude,
-						std::vector<Vector> &rgbVals) {
+						std::vector<Vector> &rgbVals, HSVFUN calc) {
 	int l;
 	for(l = 0; l < magnitude.size(); l++) {
 		double val = magnitude.at(l);
@@ -250,9 +243,8 @@ void mapMagnitudeToHSV(double mean, double stddev, std::vector<double> magnitude
 		else if (val > max) fin = 1;
 		else {
 			fin = (val - min) / (max - min);
-			/* 240 / 360 is blue to magenta
-			 * 1 - fin is inverting the color wheel, this is for testing with more extreme values right now */
-			Vector hsv = { static_cast<float>((240.0f * (1.0f-fin)) / 360.0f),1.0f,1.0f };
+			/*1 - fin is inverting the color wheel, this is for testing with more extreme values right now */
+			Vector hsv = { static_cast<float>(calc(fin)),1.0f,1.0f };
 			rgbVals.push_back(AftrUtilities::convertHSVtoRGB(hsv));
 		}
 	}
@@ -358,10 +350,12 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 
 			std::vector<Vector> rgbVals;
 			Vector finalColor = Vector();
-			mapMagnitudeToHSV(mean, stddev, pptr->uMagnitude.polyData.at(i), rgbVals);
+			mapMagnitudeToHSV(mean, stddev, pptr->uMagnitude.polyData.at(i), rgbVals, (HSVFUN)streamLinesHueCalc);
 			for(int d = 0; d < rgbVals.size(); d++) finalColor += rgbVals.at(d);
 			finalColor /= rgbVals.size();
-			magnitude.push_back(aftrColor4ub(finalColor));
+			aftrColor4ub fin = aftrColor4ub(finalColor);
+			fin.a = 50.0f;
+			magnitude.push_back(fin);
 
 			/*preLoadedWOs.at(i).at(j) =
 				WO::New(point, Vector(POINT_SIZE, POINT_SIZE, POINT_SIZE), MESH_SHADING_TYPE::mstFLAT);
@@ -393,7 +387,7 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 			std::vector<double> meshMag;
 			Vector finalColor = Vector();
 			for (mj = 0; mj < VSIZE; mj++) meshMag.push_back(model->magnitudeTS[i].values.data[mi][mj]);
-			mapMagnitudeToHSV(mean, stddev, meshMag, rgbVals);
+			mapMagnitudeToHSV(mean, stddev, meshMag, rgbVals, (HSVFUN)modelHueCalc);
 			for (k = 0; k < rgbVals.size(); k++) finalColor = finalColor + rgbVals.at(k);
 			meshMagnitudeColors.push_back(aftrColor4ub(finalColor));
 		}
@@ -436,7 +430,12 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 
 		preLoadedWOs.at(i) = WO::New();
 		preLoadedOFMeshTS.at(i) = WO::New();
+		ModelMeshSkin cloudskin(GLSLShaderDefaultGL32PerVertexColor::New());
+		cloudskin.setGLPrimType(GL_TRIANGLES);
+		cloudskin.setMeshShadingType(MESH_SHADING_TYPE::mstFLAT);
 		MGLPointCloud *cloud = MGLPointCloud::New(preLoadedWOs.at(i), cam, true, false, false);
+		cloud->addSkin(std::move(cloudskin));
+		cloud->useNextSkin();
 		cloud->setPoints(pointLoc, magnitude);
 		cloud->setScale(Vector(POINT_SIZE, POINT_SIZE, POINT_SIZE));
 		preLoadedWOs.at(i)->setModel(cloud);
@@ -447,6 +446,8 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 		ModelMeshSkin skin(GLSLShaderDefaultGL32PerVertexColor::New());
 		skin.setGLPrimType(GL_TRIANGLES);
 		skin.setMeshShadingType(MESH_SHADING_TYPE::mstFLAT);
+		skin.setAmbient(aftrColor4f(255.0f, 255.0f, 255.0f, 255.0f));
+		skin.setColor(aftrColor4ub(255.0f, 255.0f, 255.0f, 255.0f));
 		IndexedGeometryTriangles* igt = IndexedGeometryTriangles::New(verts, indices, vertexColors);
 		MGLIndexedGeometry* mgl = MGLIndexedGeometry::New(preLoadedOFMeshTS.at(i));
 		mgl->addSkin(std::move(skin));
