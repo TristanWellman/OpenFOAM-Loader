@@ -12,8 +12,8 @@
 
 #include "vtkParser.hpp"
 
-vtkParser::vtkParser() {}
-vtkParser::vtkParser(char* vtkFile) : VTKFILE(vtkFile) {}
+vtkParser::vtkParser() { globalVtkData = nullptr; }
+vtkParser::vtkParser(char* vtkFile) : VTKFILE(vtkFile) {globalVtkData = nullptr;}
 
 template<typename FSTR>
 void vtkParser::setVtkFile(FSTR fileName) {
@@ -37,15 +37,36 @@ void vtkParser::freeVtkData() {
 	if (globalVtkData && globalVtkData->foamData) {
 		delete globalVtkData->foamData;
 		globalVtkData->foamData = nullptr;
+		if (globalVtkData->fileBuffer) {
+			int i;
+			for(i=0;i<globalVtkData->lineCount;i++) 
+				delete []globalVtkData->fileBuffer[i];
+			delete []globalVtkData->fileBuffer;
+		}
+		delete globalVtkData;
+		globalVtkData = nullptr;
 	}
-	delete globalVtkData;
-	globalVtkData = nullptr;
+
+}
+
+void vtkParser::freeFileBuffer() {
+	if(globalVtkData&&globalVtkData->fileBuffer) {
+		int i;
+		for(i=0;i<globalVtkData->lineCount;i++)
+			delete[]globalVtkData->fileBuffer[i];
+		delete[]globalVtkData->fileBuffer;
+	}
 }
 
 int vtkParser::init() {
 
 	globalVtkData = new vtkParseData;
-	globalVtkData->foamData = new openFoamVtkFileData;
+	globalVtkData->fileBuffer = nullptr;
+	globalVtkData->lineCount = 0;
+	globalVtkData->foamData = new openFoamVtkFileData();
+	globalVtkData->currentScope = NONE;
+	globalVtkData->currentSubScope = NONE;
+
 	std::FILE* file = std::fopen(
 		VTKFILE.c_str(), "r");
 
@@ -59,14 +80,13 @@ int vtkParser::init() {
 	char line[100000];
 
 	std::fseek(file, 0, SEEK_SET);
-
+	globalVtkData->fileBuffer = new char*[MAXFILELINES];
 	// copy data from file to fileBuffer
 	for (lineCount = 0; fgets(line, sizeof(line), file) != NULL; lineCount++) {
-		int i = 0;
-		for (i = 0; i < MAXLINESIZE && line[i] != '\0'; i++) {
-			globalVtkData->fileBuffer[lineCount][i] = line[i];
-			globalVtkData->fileBuffer[lineCount][i+1] = '\0';
-		}
+		int size = strlen(line)+1;
+		globalVtkData->fileBuffer[lineCount] = new char[size]; 
+		strncpy(globalVtkData->fileBuffer[lineCount], line, size-1);
+		globalVtkData->fileBuffer[lineCount][size - 1] = '\0';
 		//std::cout << globalVtkData->fileBuffer[lineCount];
 	}
 	globalVtkData->lineCount = lineCount;
@@ -172,9 +192,10 @@ int vtkParser::polyPointSecParse(vtkParseData* p, vtkPointDataset* data, int lin
 	// reserve and concat all strings to line buffer
 	dataBuffer.reserve(totalSize);
 	for (auto& str : pointBufferLines) {
-		if (str.at(str.length() - 1) == '\n') str = str.substr(0, str.size() - 1);
+		if(str=="") break;
+		if(str.at(str.length() - 1) == '\n') str = str.substr(0, str.size() - 1);
 		dataBuffer += str;
-		if (str.at(str.length() - 1) != ' ') dataBuffer += ' ';
+		if(str.at(str.length() - 1) != ' ') dataBuffer += ' ';
 	}
 
 	// tokenize the file buffer line into individual values

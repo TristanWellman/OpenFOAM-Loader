@@ -1,6 +1,7 @@
 /*Created by Tristan Wellman 2024*/
 
 #include <filesystem>
+#include <fstream>
 #include <functional>
 
 #include "vtkOFRenderer.hpp"
@@ -32,6 +33,7 @@ std::string splitStr(std::string & str, char delim) {
 std::vector<std::string> vtkOFRenderer::getOpenFoamTimeStamps(std::vector<std::string> dirs) {
 	std::vector<std::string> ret;
 	for (std::string i : dirs) {
+		if(i.find(".orig")!=std::string::npos) continue;
 		while (splitStr(i, '/') != "");
 		if(splitStr(i, '\\') != "") continue;
 
@@ -64,10 +66,10 @@ vtkOFRenderer::vtkOFRenderer(std::string openFoamPath) : filePath(openFoamPath) 
 
 	if (openFoamPath.at(openFoamPath.length() - 1) != '/') openFoamPath += '/';
 	for (int i = 0; i < timeStamps.size();i++) {
+		// This is /track0_U.vtk on older versions of OpenFOAM I.E. v2012
 		std::string fullPath = openFoamPath +
-			"postProcessing/sets/streamlines/" + timeStamps.at(i) + "/track0_U.vtk";
+			"postProcessing/sets/streamlines/" + timeStamps.at(i) + "/track0.vtk";
 		tracksFiles.push_back(fullPath);
-		std::cout << tracksFiles.at(i) << std::endl;
 	}
 	isReady = false; // will be ready after parser is ran
 	runLoop = false;
@@ -77,7 +79,10 @@ vtkOFRenderer::vtkOFRenderer(std::string openFoamPath) : filePath(openFoamPath) 
 std::mutex tracksFileDataMutex;
 
 void vtkOFRenderer::parseThread(int index) {
-	vtkParser* parser = &threadParsers.at(index);
+	vtkParser *parser = threadParsers[index].get();
+	std::ifstream s(tracksFiles.at(index));
+	if(s.fail()) { threadStates.at(index) = 1; return;}
+	s.close();
 	parser->setVtkFile(tracksFiles.at(index));
 	parser->init();
 	parser->parseOpenFoam();
@@ -107,7 +112,9 @@ int vtkOFRenderer::parseTracksFiles() {
 	}
 
 	threadStates.resize(tracksFiles.size(), 0);
-	threadParsers.resize(tracksFiles.size());
+	threadParsers.clear();
+	threadParsers.reserve(tracksFiles.size());
+	for(i=0;i<tracksFiles.size();i++) threadParsers.push_back(std::make_unique<vtkParser>());
 
 	int nextIndex = 0;
 	std::vector<std::thread> activeThreads;
@@ -115,8 +122,9 @@ int vtkOFRenderer::parseTracksFiles() {
 	while(nextIndex < tracksFiles.size() || !activeThreads.empty()) {
 		while(activeThreads.size() < MAXTHREADS && nextIndex < tracksFiles.size()) {
 			if(!tracksFiles.at(nextIndex).empty()) {
+				std::string ts = tracksFiles.at(nextIndex);
 				activeThreads.push_back(std::thread(std::mem_fn(&vtkOFRenderer::parseThread), this, nextIndex));
-				VTKLOG("INFO:: Started parser thread for: {}", tracksFiles.at(nextIndex));
+				VTKLOG("INFO:: Started parser thread for: {}", ts);
 			}
 			nextIndex++;
 		}
@@ -126,7 +134,7 @@ int vtkOFRenderer::parseTracksFiles() {
 				t = activeThreads.erase(t);
 			} else t++;
 		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+		//std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 
 	isReady = true;
@@ -145,7 +153,7 @@ void vtkOFRenderer::updateVtkTrackModel(WorldContainer* wl) {
 	static size_t curClock = clock();
 
 	static const char* pastTS = "0";
-	openFoamVtkFileData* pptr = new openFoamVtkFileData;
+	vtkParser::openFoamVtkFileData* pptr = new vtkParser::openFoamVtkFileData();
 	int i = 0;
 
 	if(runLoop) currentSelectedTimeStamp = timeStamps.at(curTime).c_str();
@@ -295,7 +303,7 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 		"ERROR:: Uninitialized vtk timestamps!");
 
 	static const char* pastTS;
-	openFoamVtkFileData* pptr = new openFoamVtkFileData;
+	vtkParser::openFoamVtkFileData* pptr = new vtkParser::openFoamVtkFileData();
 
 	for (i = 0; i < timeStamps.size(); i++) {
 		if (timeStamps.at(i).c_str() == currentSelectedTimeStamp) break;
@@ -327,7 +335,7 @@ WO *vtkOFRenderer::renderTimeStampTrack(WorldContainer *worldList, Camera** cam)
 	pointLoc.clear();
 	magnitude.clear();
 
-	for (i = 0; i < timeStamps.size() && i < tracksFileData.size(); i++) {
+	for (i = 1; i < timeStamps.size() && i < tracksFileData.size(); i++) {
 		pptr = &tracksFileData.at(i);
 
 		mean = 0; stddev = 0;

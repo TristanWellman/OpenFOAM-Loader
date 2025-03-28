@@ -55,7 +55,7 @@ typedef double(*HSVFUN)(double val);
    BEFORE AfterBurner render loop or it'll parse all openFOAM
    files every frame!
  */
-class vtkOFRenderer : vtkParser {
+class vtkOFRenderer {
 public:
 
 	bool isReady;
@@ -94,7 +94,7 @@ private:
 
 
 	std::vector<int> threadStates;
-	std::vector<vtkParser> threadParsers;
+	std::vector< std::unique_ptr<vtkParser> > threadParsers;
 	std::vector<std::thread> threads;
 
 	std::string filePath;
@@ -107,8 +107,8 @@ private:
 	std::vector<unsigned int> WOIDS;
 	std::vector<unsigned int> MESHWOIDS;
 
-	std::vector< Vector > curVertexList;
-	std::vector< unsigned int > curIndexList;
+	std::vector<Vector> curVertexList;
+	std::vector<unsigned int> curIndexList;
 
 	std::vector<WO*> preLoadedWOs;
 	std::vector<WO*> preLoadedOFMeshTS;

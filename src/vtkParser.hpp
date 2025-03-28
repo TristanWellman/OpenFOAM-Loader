@@ -5,13 +5,17 @@
 
 #include <iostream>
 #include <vector>
+#include <thread>
+#include <mutex>
+#include <atomic>
+
 
 #if defined __APPLE__
 #define FMT_HEADER_ONLY
 #endif
 #include <fmt/core.h>
 
-#define MAXLINESIZE 256
+#define MAXLINESIZE 100000
 #define MAXFILELINES 100000
 
 #define POLYDATANSIZE 3
@@ -80,11 +84,14 @@ public:
 	vtkParser();
 	vtkParser(char* vtkFile);
 
+	virtual ~vtkParser() {freeVtkData();}
+
 	template<typename FSTR>
 	void setVtkFile(FSTR fileName);
 	void printVTKFILE();
 
 	void freeVtkData();
+	void freeFileBuffer();
 	int init();
 	int parseOpenFoam();
 
@@ -96,11 +103,11 @@ public:
 	openFoamVtkFileData getOpenFoamData();
 
 private:
-	// has to be std string instead of ptr because of local ptr return garbage.
+
 	std::string VTKFILE;
 
 	typedef struct {
-		char fileBuffer[MAXFILELINES][MAXLINESIZE];
+		char **fileBuffer;
 		int lineCount;
 		openFoamVtkFileData* foamData;
 
